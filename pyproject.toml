@@ -96,6 +96,9 @@ omit = ["test_*.py", "./src/tests/*"]
 parallel = true
 concurrency = ["thread", "multiprocessing"]
 
+#[tool.zuban] 
+#mode = "default"
+
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
@@ -140,6 +143,7 @@ dev = [
   "pydot",
   "pre-commit",
   "pyright",
+  #"zuban>=0.9.0",
   "poethepoet",
   "wigglecam[node]",
   "pyturbojpeg~=1.8.0",
@@ -177,6 +181,6 @@ module-name = ["photobooth", "web"]
 
 # comment out for local development using editable installs
 [tool.uv.sources]
-# # rclone-bin-api = {  workspace = true, editable=true }
+# rclone-bin-api = {  workspace = true, editable=true }
 # rclone-bin-api = { path = "../rclone-bin-api", editable=true }
 # wigglecam = { path="../photobooth-wigglecam", editable = true }
