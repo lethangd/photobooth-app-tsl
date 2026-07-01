@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 import av
+import av.codec.context
 import piexif
 from av import VideoStream
 from PIL import Image, ImageOps, ImageSequence
@@ -122,14 +123,14 @@ def resize_mp4(filepath_in: Path, filepath_out: Path, scaled_min_length: int):
 
     input_container = av.open(filepath_in)
     input_stream = input_container.streams.video[0]
-    input_stream.thread_type = "AUTO"  # speed up decoding, see benchmark results.
+    input_stream.thread_type = av.codec.context.ThreadType.AUTO  # speed up decoding, see benchmark results.
     input_stream.thread_count = 0
 
     ow, oh = scale_image_to_min_longest_side(input_stream.width, input_stream.height, scaled_min_length)
 
     output_container = av.open(filepath_out, mode="w", options={"movflags": "faststart"})
     output_stream: VideoStream = output_container.add_stream("h264", rate=input_stream.codec_context.framerate)  # rate is fps
-    output_stream.thread_type = "AUTO"  # speed up encoding
+    output_stream.thread_type = av.codec.context.ThreadType.AUTO  # speed up encoding
     output_stream.thread_count = 0
     output_stream.width = ow
     output_stream.height = oh

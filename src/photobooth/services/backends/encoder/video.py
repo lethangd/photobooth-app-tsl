@@ -6,6 +6,7 @@ from pathlib import Path
 from threading import Event, Lock
 
 import av
+import av.codec.context
 import av.logging
 from PIL import Image
 
@@ -84,7 +85,7 @@ class SoftwareVideoRecorder:
             stream.codec_context.max_b_frames = 0
             stream.codec_context.options["tune"] = "zerolatency"  # Optional: faster encoding for real-time
             stream.codec_context.options["preset"] = "veryfast"
-            stream.codec_context.thread_type = "AUTO"
+            stream.codec_context.thread_type = av.codec.context.ThreadType.AUTO
             stream.codec_context.thread_count = 0
             stream.codec_context.time_base = Fraction(1, timebase_res)  # Critical to sync timebase for stream/codec!
             # stream.codec_context.profile = "Main"

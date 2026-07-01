@@ -9,6 +9,7 @@ from fractions import Fraction
 from pathlib import Path
 
 import av
+import av.codec.context
 import cv2
 
 from .... import LOG_PATH
@@ -93,7 +94,7 @@ class BoomerangStep(PipelineStep):
 
         # setup in/out streams
         in_stream = in_container.streams.video[0]
-        in_stream.codec_context.thread_type = "AUTO"
+        in_stream.codec_context.thread_type = av.codec.context.ThreadType.AUTO
         in_stream.codec_context.thread_count = 0
 
         # base fps from input, scaled by boomerang speed
@@ -111,7 +112,7 @@ class BoomerangStep(PipelineStep):
         out_stream.pix_fmt = "yuv420p"
         out_stream.codec_context.options["tune"] = "zerolatency"  # Optional: faster encoding for real-time
         out_stream.codec_context.options["preset"] = "veryfast"
-        out_stream.codec_context.thread_type = "AUTO"
+        out_stream.codec_context.thread_type = av.codec.context.ThreadType.AUTO
         out_stream.codec_context.thread_count = 0
         out_stream.codec_context.time_base = timebase_res  # Critical to sync timebase for stream/codec!
 
@@ -119,7 +120,7 @@ class BoomerangStep(PipelineStep):
         # out_stream = out_container.add_stream_from_template(template=in_stream, rate=out_fps, pix_fmt="yuv420p", options={"movflags": "+faststart"})
         # out_stream.codec_context.options["tune"] = "zerolatency"  # Optional: faster encoding for real-time
         # out_stream.codec_context.options["preset"] = "veryfast"
-        # out_stream.codec_context.thread_type = "AUTO"
+        # out_stream.codec_context.thread_type = av.codec.context.ThreadType.AUTO
         # out_stream.codec_context.thread_count = 0
         # out_stream.pix_fmt = "yuv420p"
         # out_stream.options = {"movflags": "+faststart"}

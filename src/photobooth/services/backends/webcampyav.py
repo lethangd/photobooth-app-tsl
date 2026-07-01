@@ -10,6 +10,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import av
+import av.codec.context
 import av.error
 from av.codec import Capabilities, Codec
 from av.codec.codec import UnknownCodecError
@@ -180,7 +181,7 @@ class WebcamPyavBackend(AbstractBackend):
 
             with input_device:
                 input_stream = input_device.streams.video[0]
-                input_stream.thread_type = "AUTO"  # speed up processing
+                input_stream.thread_type = av.codec.context.ThreadType.AUTO  # speed up processing
                 input_stream.thread_count = 0  # speed up processing
                 codec_name = input_stream.codec.name
 
