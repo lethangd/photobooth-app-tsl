@@ -65,13 +65,13 @@ class WebcamPyavBackend(AbstractBackend):
         return f"video={self._config.device_identifier}" if sys.platform == "win32" else f"{self._config.device_identifier}"
 
     def _handle_switchmode_video_mode(self):
-        super()._handle_switchmode_video_mode()
+        pass
 
     def _handle_switchmode_still_mode(self):
-        super()._handle_switchmode_still_mode()
+        pass
 
     def _handle_switchmode_standby(self):
-        super()._handle_switchmode_standby()
+        pass
 
     def setup_resource(self):
         pass

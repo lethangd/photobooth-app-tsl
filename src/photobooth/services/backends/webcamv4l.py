@@ -57,16 +57,12 @@ class WebcamV4lBackend(AbstractBackend):
         self._set_mode(self._config.CAM_RESOLUTION_WIDTH, self._config.CAM_RESOLUTION_HEIGHT)
         self._skip_frames_after_switch: int = 1
 
-        super()._handle_switchmode_video_mode()
-
     def _handle_switchmode_still_mode(self):
         self._set_mode(self._config.HIRES_CAM_RESOLUTION_WIDTH, self._config.HIRES_CAM_RESOLUTION_HEIGHT)
         self._skip_frames_after_switch: int = 1 + self._config.flush_number_frames_after_switch
 
-        super()._handle_switchmode_still_mode()
-
     def _handle_switchmode_standby(self):
-        super()._handle_switchmode_standby()
+        pass
 
     def _set_mode(self, width: int, height: int):
         assert linuxpy_video_device

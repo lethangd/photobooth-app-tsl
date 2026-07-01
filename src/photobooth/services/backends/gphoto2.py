@@ -79,8 +79,6 @@ class Gphoto2Backend(AbstractBackend):
             if cfg.enabled:
                 self._set_config(cfg.name, cfg.value)
 
-        super()._handle_switchmode_video_mode()
-
     def _handle_switchmode_still_mode(self):
         logger.debug("configure camera optimized for still capture")
 
@@ -88,16 +86,12 @@ class Gphoto2Backend(AbstractBackend):
             if cfg.enabled:
                 self._set_config(cfg.name, cfg.value)
 
-        super()._handle_switchmode_still_mode()
-
     def _handle_switchmode_standby(self):
         logger.debug("configure camera optimized for livestream paused")
 
         for cfg in self._config.parameterset_standby:
             if cfg.enabled:
                 self._set_config(cfg.name, cfg.value)
-
-        super()._handle_switchmode_standby()
 
     def _set_config(self, name: str, val: str | int = ""):
         assert gp
