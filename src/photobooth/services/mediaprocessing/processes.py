@@ -109,11 +109,11 @@ def process_video(video_in: Path, mediaitem: Mediaitem):
     with MetricsTimer(process_video.__name__):
         pipeline(context)
 
-    # get result
-    video_processed = context.video_processed if context.video_processed else context.video_in  # if pipeline was empty, use input as output
-
-    # create final video
-    shutil.move(video_processed, mediaitem.unprocessed)
+    # copy final video
+    if context.video_processed:  # in case a video was processed, move it
+        shutil.move(context.video_processed, mediaitem.unprocessed)
+    else:  # otherwise create a copy because we want to keep the original
+        shutil.copy2(video_in, mediaitem.unprocessed)
     # complete processed version (unprocessed and processed are same here for this one)
     shutil.copy2(mediaitem.unprocessed, mediaitem.processed)
 
