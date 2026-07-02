@@ -108,7 +108,9 @@ class Gphoto2Backend(AbstractBackend):
             logger.info(f"set_config '{name}' to '{val}'")
             self._gp_set_config(name, val)
         except gp.GPhoto2Error as exc:
-            logger.warning(f"cannot set '{name}' to '{val}'! Command ignored, error: {exc}")
+            logger.error(f"cannot set '{name}' to '{val}'! Command ignored, error: {exc}")
+        except TypeError as exc:
+            logger.error(f"cannot set '{name}' to '{val}'! Command ignored, error: {exc}")
         except AttributeError as exc:
             logger.info(f"cannot set config because the camera is not yet available, error: {exc}")
 
