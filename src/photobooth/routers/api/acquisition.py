@@ -20,7 +20,7 @@ router = APIRouter(prefix="/aquisition", tags=["aquisition"])
 
 @router.websocket("/stream")
 async def websocket_endpoint(websocket: WebSocket, index_device: int | None = None, index_subdevice: int = 0):
-    if not appconfig.backends.enable_livestream:
+    if not appconfig.cameras.enable_livestream:
         raise HTTPException(status.HTTP_405_METHOD_NOT_ALLOWED, "preview not enabled")
 
     await websocket.accept()
@@ -89,7 +89,7 @@ async def websocket_endpoint(websocket: WebSocket, index_device: int | None = No
 
 @router.get("/stream.mjpg")
 def video_stream(index_device: int = 0, index_subdevice: int = 0):
-    if not appconfig.backends.enable_livestream:
+    if not appconfig.cameras.enable_livestream:
         raise HTTPException(status.HTTP_405_METHOD_NOT_ALLOWED, "preview not enabled")
 
     def gen_multipart():

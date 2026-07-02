@@ -132,7 +132,7 @@ def test_websocket_stream(mock_gen_stream, client: TestClient):
 
 def test_stream_exception_disabled(client: TestClient):
     # disable livestream
-    appconfig.backends.enable_livestream = False
+    appconfig.cameras.enable_livestream = False
 
     # shall result in error 405
     response = client.get("/aquisition/stream.mjpg")

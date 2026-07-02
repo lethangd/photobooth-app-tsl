@@ -97,7 +97,7 @@ class JobModelBase(ABC, Generic[T]):
             total_captures_to_take=self.total_captures_to_take,
             remaining_captures_to_take=self.remaining_captures_to_take,
             number_captures_taken=self.captures_taken,
-            duration=self._countdown_timer._duration + appconfig.backends.countdown_camera_capture_offset if self._countdown_timer._duration else 0,
+            duration=self._countdown_timer._duration + appconfig.cameras.countdown_camera_capture_offset if self._countdown_timer._duration else 0,
             present_mediaitem_id=str(self._present_mediaitem_id) if self._present_mediaitem_id else None,
             approval_id=str(self._approval_id) if self._approval_id else None,
             configuration_set=self._configuration_set.model_dump(mode="json"),
@@ -109,7 +109,7 @@ class JobModelBase(ABC, Generic[T]):
 
     @abstractmethod
     def on_enter_counting(self):
-        self.start_countdown(appconfig.backends.countdown_camera_capture_offset)
+        self.start_countdown(appconfig.cameras.countdown_camera_capture_offset)
 
     @abstractmethod
     def on_exit_counting(self):
