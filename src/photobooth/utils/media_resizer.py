@@ -121,42 +121,42 @@ def resize_mp4(filepath_in: Path, filepath_out: Path, scaled_min_length: int):
 
         return new_width, new_height
 
-    input_container = av.open(filepath_in)
-    input_stream = input_container.streams.video[0]
-    input_stream.thread_type = av.codec.context.ThreadType.AUTO  # speed up decoding, see benchmark results.
-    input_stream.thread_count = 0
+    with av.open(filepath_in) as input, av.open(filepath_out, mode="w", options={"movflags": "faststart"}) as output:
+        in_stream = input.streams.video[0]
 
-    ow, oh = scale_image_to_min_longest_side(input_stream.width, input_stream.height, scaled_min_length)
+        in_stream.thread_type = av.codec.context.ThreadType.AUTO  # speed up decoding, see benchmark results.
+        in_stream.thread_count = 0
+        in_fps = in_stream.codec_context.framerate  # or input_stream.average_rate?
+        in_time_base = in_stream.time_base
+        assert in_time_base, "cannot determine timebase of input stream"
 
-    output_container = av.open(filepath_out, mode="w", options={"movflags": "faststart"})
-    output_stream: VideoStream = output_container.add_stream("h264", rate=input_stream.codec_context.framerate)  # rate is fps
-    output_stream.thread_type = av.codec.context.ThreadType.AUTO  # speed up encoding
-    output_stream.thread_count = 0
-    output_stream.width = ow
-    output_stream.height = oh
-    output_stream.codec_context.options["preset"] = "veryfast"
-    output_stream.codec_context.options["crf"] = "23"  # 23 default, 17-18 is visually lossless
-    # output_stream.codec_context.bit_rate = 5000000  # 5000k==5Mbps seems reasonable for simple streams in the 1080range
+        ow, oh = scale_image_to_min_longest_side(in_stream.width, in_stream.height, scaled_min_length)
+        out_stream: VideoStream = output.add_stream("h264", rate=in_fps)  # rate is fps
+        out_stream.thread_type = av.codec.context.ThreadType.AUTO  # speed up encoding
+        out_stream.thread_count = 0
+        out_stream.width = ow
+        out_stream.height = oh
+        out_stream.time_base = in_time_base
+        out_stream.codec_context.time_base = in_time_base  # Critical to sync timebase for stream/codec!
+        out_stream.codec_context.options["preset"] = "veryfast"
+        out_stream.codec_context.options["crf"] = "23"  # 23 default, 17-18 is visually lossless
+        # output_stream.codec_context.bit_rate = 5000000  # 5000k==5Mbps seems reasonable for simple streams in the 1080range
 
-    for frame in input_container.decode(input_stream):
-        # Das Frame in der Zielgröße skalieren
-        scaled_frame = frame.reformat(
-            width=output_stream.width,
-            height=output_stream.height,
-            # interpolation=Interpolation.BILINEAR, # default is BILINEAR
-        )
+        for frame in input.decode(in_stream):
+            # Das Frame in der Zielgröße skalieren
+            scaled_frame = frame.reformat(
+                width=out_stream.width,
+                height=out_stream.height,
+                # interpolation=Interpolation.BILINEAR, # default is BILINEAR
+            )
 
-        # Das skalierte Frame in den Ausgabestream codieren
-        for packet in output_stream.encode(scaled_frame):
-            output_container.mux(packet)
+            # Das skalierte Frame in den Ausgabestream codieren
+            for packet in out_stream.encode(scaled_frame):
+                output.mux(packet)
 
-    # Restliche Frames flushen
-    for packet in output_stream.encode():
-        output_container.mux(packet)
-
-    # Container schließen
-    input_container.close()
-    output_container.close()
+        # Restliche Frames flushen
+        for packet in out_stream.encode():
+            output.mux(packet)
 
 
 def resize(filepath_in: Path, filepath_out: Path, scaled_min_length: int) -> None:
