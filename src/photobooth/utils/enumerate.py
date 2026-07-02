@@ -108,7 +108,7 @@ def webcameras() -> list[str]:
 
     logger.debug(devices)
 
-    return [device.name for device in devices if "video" in device.media_types]
+    return [device.name for device in devices if "video" in device.media_types or len(device.media_types) == 0]
 
 
 def dslr_gphoto2() -> list[int]:
