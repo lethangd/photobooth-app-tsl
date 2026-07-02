@@ -33,11 +33,11 @@ keywords = [
 ]
 dependencies = [
   "fastapi>=0.106.0",
-  "opencv-python-headless~=4.13.0",
+  "opencv-python-headless~=5.0.0",
   "numpy>=2.0.0",
   "pillow>=12.1.1",
   "psutil>=7.2.0",
-  "pydantic>=2.11.2",
+  "pydantic>=2.13.0",
   "pydantic-extra-types>=2.3.0",
   "pydantic-settings>=2.11,<2.16",
   "sse-starlette>=2.2.0,<4.0.0",
@@ -56,7 +56,7 @@ dependencies = [
   "SQLAlchemy>=2.0.37",
   "simplejpeg>=1.8.2",
   "pluggy>=1.5.0",
-  "av>=17.0.1,<17.2",
+  "av>=18.0.0,<18.1.0",
   "alembic>=1.15.2",
   "onnxruntime",
   "rclone-bin-api>=1.0.5",
@@ -170,6 +170,7 @@ test = [
 benchmark = [
   { cmd = "pytest --benchmark-only --benchmark-autosave --basetemp=./tests_tmp/ -v ./src/tests/benchmarks" },
 ]
+list_outdated = [{ cmd = "uv pip list --outdated" }]
 
 
 [build-system]
