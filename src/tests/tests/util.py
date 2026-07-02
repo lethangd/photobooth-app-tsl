@@ -25,9 +25,14 @@ def block_until_device_is_running(backend: AbstractBackend):
     Returns:
         _type_: _description_
     """
+    counter = 0
     while not backend.is_running():
         logger.debug("wait for startup")
-        time.sleep(0.1)
+        time.sleep(0.5)
+        counter += 1
+
+        if counter == 20:  # max 10s
+            raise RuntimeError("abort waiting for startup!")
 
 
 def get_images(backend: AbstractBackend, multicam_is_error: bool = False):
