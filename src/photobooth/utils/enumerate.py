@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from threading import Lock
 
-import av
 import serial.tools.list_ports
 from rclone_api.api import RcloneApi
 
@@ -34,7 +33,7 @@ def serial_ports() -> list[str]:
 
 
 def webcameras() -> list[str]:
-    devices = []
+    assert sys.platform in ("win32", "linux", "darwin"), "platform not supported to enumerate"
 
     def _webcameras_linux() -> list[str]:
         devices: list[str] = []
@@ -93,22 +92,13 @@ def webcameras() -> list[str]:
         camera_names: list[str] = re.findall(r"^\s{4}([^\n:]+):\s*$", result.stdout, re.MULTILINE)
         return [name.strip() for name in camera_names]
 
-    assert sys.platform in ("win32", "linux", "darwin"), "platform not supported to enumerate"
-
     with enumerate_lock:
-        try:
-            if sys.platform == "win32":
-                devices = av.enumerate_input_devices("dshow")
-            elif sys.platform == "linux":
-                devices = av.enumerate_input_devices("v4l2")
-            elif sys.platform == "darwin":
-                devices = av.enumerate_input_devices("avfoundation")
-        except Exception as exc:
-            logger.warning(f"error enumerating webcams: {exc}")
-
-    logger.debug(devices)
-
-    return [device.name for device in devices if "video" in device.media_types or len(device.media_types) == 0]
+        if sys.platform == "win32":
+            return _webcameras_windows()
+        elif sys.platform == "linux":
+            return _webcameras_linux()
+        elif sys.platform == "darwin":
+            return _webcameras_darwin()
 
 
 def dslr_gphoto2() -> list[int]:
