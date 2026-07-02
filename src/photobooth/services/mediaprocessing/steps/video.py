@@ -37,139 +37,49 @@ class LoopStep(PipelineStep):
 
             return  # exit early.
 
-        in_container = av.open(input_path)
-        out_container = av.open(output_path, mode="w")
+        with av.open(input_path) as input, av.open(output_path, mode="w", options={"movflags": "faststart"}) as output:
+            in_stream = input.streams.video[0]
+            out_stream = output.add_stream_from_template(template=in_stream)
 
-        in_stream = in_container.streams.video[0]
-        out_stream = out_container.add_stream_from_template(template=in_stream)
+            # compute duration in ticks; it is assumed that pts and dts have same duration, TODO: verify.
+            dts_values = [p.dts for p in input.demux(in_stream) if p.dts is not None]
+            duration_ts = max(dts_values) - min(dts_values)
 
-        # compute duration in ticks; it is assumed that pts and dts have same duration, TODO: verify.
-        dts_values = [p.dts for p in in_container.demux(in_stream) if p.dts is not None]
-        duration_ts = max(dts_values) - min(dts_values)
+            in_fps = in_stream.base_rate or in_stream.average_rate
+            assert in_fps is not None, "could not determine the input video fps."
+            assert in_stream.time_base is not None, "could not determine the input video time_base."
+            frame_duration_s = 1 / in_fps
+            frame_duration_ts = int(frame_duration_s / in_stream.time_base)
 
-        in_fps = in_stream.base_rate or in_stream.average_rate
-        assert in_fps is not None, "could not determine the input video fps."
-        assert in_stream.time_base is not None, "could not determine the input video time_base."
-        frame_duration_s = 1 / in_fps
-        frame_duration_ts = int(frame_duration_s / in_stream.time_base)
+            # --- PASS 2: loop packets ---
+            input.seek(0)
+            for loop_index in range(self.loops):
+                ts_offset = loop_index * (duration_ts + frame_duration_ts)
 
-        # --- PASS 2: loop packets ---
-        in_container.seek(0)
-        for loop_index in range(self.loops):
-            ts_offset = loop_index * (duration_ts + frame_duration_ts)
+                for packet in input.demux(in_stream):
+                    if packet.size == 0:  # https://pyav.basswood.io/docs/stable/cookbook/basics.html
+                        continue
+                    if packet.dts is None or packet.pts is None:
+                        continue
 
-            for packet in in_container.demux(in_stream):
-                # for packet in packets:
-                if packet.dts is None:
-                    continue
-                if packet.pts is None:
-                    continue
+                    packet.stream = out_stream
+                    packet.pts = packet.pts + ts_offset
+                    packet.dts = packet.dts + ts_offset
 
-                packet.stream = out_stream
-                packet.pts = packet.pts + ts_offset
-                packet.dts = packet.dts + ts_offset
+                    output.mux(packet)
 
-                out_container.mux(packet)
-
-            in_container.seek(0)
-
-        out_container.close()
-        in_container.close()
+                input.seek(0)
 
         context.video_processed = output_path
         next_step(context)
 
 
 class BoomerangStep(PipelineStep):
-    def __init__(self, boomerang_speed: float) -> None:
+    def __init__(self, boomerang_speed: float, drop_first_last: bool = True) -> None:
         self.boomerang_speed: float = boomerang_speed
+        self.drop_first_last: bool = drop_first_last
 
     def __call__(self, context: VideoContext, next_step: NextStep) -> None:
-        input_path = Path(context.video_in)
-        output_path = Path("tmp", f"boomerang_{uuid.uuid4().hex}").with_suffix(".mp4")
-
-        # setup in/out containers
-        in_container = av.open(input_path)
-        out_container = av.open(output_path, mode="w")
-
-        # setup in/out streams
-        in_stream = in_container.streams.video[0]
-        in_stream.codec_context.thread_type = av.codec.context.ThreadType.AUTO
-        in_stream.codec_context.thread_count = 0
-
-        # base fps from input, scaled by boomerang speed
-        in_fps = in_stream.base_rate or in_stream.average_rate
-        assert in_fps is not None, "could not determine the input video fps."
-        out_fps = in_fps * Fraction(self.boomerang_speed).limit_denominator(10000)
-        timebase_res = 1 / out_fps
-        logger.warning(out_fps)
-
-        out_stream = out_container.add_stream("h264", rate=out_fps)
-        out_stream.width = in_stream.width
-        out_stream.height = in_stream.height
-        out_stream.time_base = timebase_res
-        out_stream.options = {"movflags": "+faststart"}
-        out_stream.pix_fmt = "yuv420p"
-        out_stream.codec_context.options["tune"] = "zerolatency"  # Optional: faster encoding for real-time
-        out_stream.codec_context.options["preset"] = "veryfast"
-        out_stream.codec_context.thread_type = av.codec.context.ThreadType.AUTO
-        out_stream.codec_context.thread_count = 0
-        out_stream.codec_context.time_base = timebase_res  # Critical to sync timebase for stream/codec!
-
-        # alt way, but not working properly, maybe there is too much garbage copied from the input stream, so we use the above method instead.
-        # out_stream = out_container.add_stream_from_template(template=in_stream, rate=out_fps, pix_fmt="yuv420p", options={"movflags": "+faststart"})
-        # out_stream.codec_context.options["tune"] = "zerolatency"  # Optional: faster encoding for real-time
-        # out_stream.codec_context.options["preset"] = "veryfast"
-        # out_stream.codec_context.thread_type = av.codec.context.ThreadType.AUTO
-        # out_stream.codec_context.thread_count = 0
-        # out_stream.pix_fmt = "yuv420p"
-        # out_stream.options = {"movflags": "+faststart"}
-        # out_stream.time_base = 1 / out_fps
-        # out_stream.codec_context.time_base = 1 / out_fps  # Critical to sync timebase for stream/codec!
-
-        logger.warning(out_stream)
-
-        logger.warning(in_stream.bit_rate)
-        logger.warning(out_stream.bit_rate)
-
-        logger.warning(out_stream.frames)
-        logger.warning(out_stream.time_base)
-        logger.warning(out_stream.guessed_rate)
-        logger.warning(out_stream.base_rate)
-        logger.warning(out_stream.average_rate)
-        logger.warning(out_stream.codec)
-        logger.warning(out_stream.codec_context)
-        logger.warning(out_stream.metadata)
-        logger.warning(out_stream.duration)
-        logger.warning(out_stream.frames)
-        logger.warning(out_stream.type)
-
-        logger.warning(out_stream.height)
-        logger.warning(out_stream.width)
-        logger.warning(out_stream.codec_context.height)
-        logger.warning(out_stream.codec_context.width)
-        logger.warning(out_stream.codec_context.framerate)
-        logger.warning(out_stream.codec_context.rate)
-        logger.warning(out_stream.codec_context.pix_fmt)
-
-        # logger.warning(out_stream)
-        # logger.warning(out_stream.framerate)
-
-        # --- PASS 1: decode all frames into RAM ---
-        frames: list[av.VideoFrame] = [frame.reformat(format="yuv420p") for frame in in_container.decode(in_stream)]
-
-        # no need for further processing, just keep the frames in memory and encode them in the next pass.
-        # This is a bit memory intensive, but for small videos it should be fine.
-        in_container.close()
-
-        if len(frames) < 3:
-            raise RuntimeError("Video too short for boomerang")
-
-        middle_frames: list[av.VideoFrame] = frames[1:-1]
-
-        # --- PASS 2: encode forward + reversed ---
-        pts = 0
-
         def clone_frame(f: av.VideoFrame) -> av.VideoFrame:
             """clone the frame so forward and backward encoding use fresh frames. this is needed because during
             encoding the pts/dts and some metadata might be changed internally and the second encoding pass fails.
@@ -211,29 +121,75 @@ class BoomerangStep(PipelineStep):
 
             return new
 
-        def encode_frame(f: av.VideoFrame) -> None:
-            nonlocal pts
+        def encode_frame(f: av.VideoFrame, pts, offset_ts: int) -> None:
             fc = clone_frame(f)
-            fc.pts = pts
-            pts += 1  # one tick per output frame
-            pkt = out_stream.encode(fc)
-            if pkt:
-                out_container.mux(pkt)
+            fc.pts = pts + offset_ts
+            fc.dts = pts + offset_ts  # dts is derived from pts by pyav/ffmpeg usually, but we keep it safe...
 
-        # forward: full video
-        for f in frames:
-            encode_frame(f)
+            for packet in out_stream.encode(fc):
+                output.mux(packet)
 
-        # reverse: trimmed (no first, no last)
-        for f in reversed(middle_frames):
-            encode_frame(f)
+        input_path = Path(context.video_in)
+        output_path = Path("tmp", f"boomerang_{uuid.uuid4().hex}").with_suffix(".mp4")
 
-        # flush encoder
-        pkt = out_stream.encode(None)
-        if pkt:
-            out_container.mux(pkt)
+        # setup in/out containers
+        with av.open(input_path) as input, av.open(output_path, mode="w", options={"movflags": "faststart"}) as output:
+            # setup in/out streams
+            in_stream = input.streams.video[0]
+            in_stream.codec_context.thread_type = av.codec.context.ThreadType.AUTO
+            in_stream.codec_context.thread_count = 0
 
-        out_container.close()
+            in_time_base = in_stream.time_base
+            in_stream_duration = in_stream.duration
+            in_fps = in_stream.codec_context.framerate
+            assert in_time_base, "cannot determine timebase of input stream"
+            assert in_stream_duration, "cannot determine duration of input stream"
+            frame_duration_ts = int((1 / in_fps) / in_time_base)
+            out_scaled_time_base = in_time_base / Fraction(self.boomerang_speed).limit_denominator(100)
+
+            out_stream = output.add_stream("h264", rate=in_fps)
+            out_stream.width = in_stream.width
+            out_stream.height = in_stream.height
+            out_stream.time_base = out_scaled_time_base
+            out_stream.pix_fmt = "yuv420p"
+            out_stream.codec_context.options["tune"] = "zerolatency"  # Optional: faster encoding for real-time
+            out_stream.codec_context.options["preset"] = "veryfast"
+            out_stream.codec_context.thread_type = av.codec.context.ThreadType.AUTO
+            out_stream.codec_context.thread_count = 0
+            out_stream.codec_context.time_base = out_scaled_time_base  # Critical to sync timebase for stream/codec!
+            out_stream.bit_rate = in_stream.bit_rate
+
+            # --- PASS 1: decode all frames into RAM ---
+            # This is a bit memory intensive, but for small videos it should be fine.
+            # decoded frames are correctly sorted by pts/dts, no need to sort manually.
+            frames: list[av.VideoFrame] = [frame.reformat(format="yuv420p") for frame in input.decode(in_stream)]
+            frames_pts = [frame.pts for frame in frames]
+
+            if len(frames) < 3:
+                raise RuntimeError("Video too short for boomerang")
+
+            # --- PASS 2: encode forward + reversed ---
+            # forward: full video
+            for i, f in enumerate(frames):
+                encode_frame(f, frames_pts[i], 0)
+
+            # reverse: trimmed (no first, no last) #TODO: maybe not an option in the future...
+            if self.drop_first_last:
+                middle_frames: list[av.VideoFrame] = frames[1:-1]
+                middle_pts = frames_pts[1:-1]
+                # subtract 1 frame duration to account for the removed frame if drop_first_last is True
+                offset_ts = in_stream_duration - frame_duration_ts
+            else:
+                middle_frames = frames
+                middle_pts = frames_pts
+                offset_ts = in_stream_duration
+
+            for i, f in enumerate(reversed(middle_frames)):
+                encode_frame(f, middle_pts[i], offset_ts)
+
+            # flush encoder
+            for packet in out_stream.encode(None):
+                output.mux(packet)
 
         context.video_processed = output_path
         next_step(context)

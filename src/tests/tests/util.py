@@ -68,7 +68,7 @@ def is_same(img1: Image.Image, img2: Image.Image):
 
 def video_duration(path: str | Path) -> float:
     with av.open(path) as container:
-        dur = container.streams[0].duration
+        dur = float(container.streams[0].duration or 0)
         tb = container.streams[0].time_base
         assert dur, "cannot determine duration (ticks)"
         assert tb, "cannot determine timebase (s/tick)"
