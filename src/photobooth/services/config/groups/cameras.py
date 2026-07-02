@@ -210,11 +210,11 @@ class GroupCameraPyav(BaseModelCamera):
     )
 
     cam_resolution_width: int = Field(
-        default=3840,
+        default=1920,
         description="camera resolution width to capture high resolution photo",
     )
     cam_resolution_height: int = Field(
-        default=2160,
+        default=1080,
         description="camera resolution height to capture high resolution photo",
     )
     cam_framerate: int = Field(
@@ -267,11 +267,11 @@ class GroupCameraV4l2(BaseModelCamera):
         description="Enable to close camera, switch to higher resolution and grab one frame with below configuration. Resolution used for stills.",
     )
     HIRES_CAM_RESOLUTION_WIDTH: int = Field(
-        default=4192,
+        default=1920,
         description="camera resolution width to capture high resolution photo",
     )
     HIRES_CAM_RESOLUTION_HEIGHT: int = Field(
-        default=3104,
+        default=1080,
         description="camera resolution height to capture high resolution photo",
     )
     flush_number_frames_after_switch: int = Field(
