@@ -1,7 +1,3 @@
-"""
-v4l webcam implementation backend
-"""
-
 import logging
 import time
 from pathlib import Path

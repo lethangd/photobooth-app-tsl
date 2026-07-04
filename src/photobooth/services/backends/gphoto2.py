@@ -1,8 +1,3 @@
-"""
-Gphoto2 backend implementation
-
-"""
-
 import logging
 import os
 import time

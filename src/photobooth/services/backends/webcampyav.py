@@ -1,7 +1,3 @@
-"""
-pyav webcam implementation backend
-"""
-
 import io
 import logging
 import sys

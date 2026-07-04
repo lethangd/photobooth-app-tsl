@@ -1,8 +1,3 @@
-"""
-Picamera2 backend implementation
-
-"""
-
 import io
 import logging
 import uuid

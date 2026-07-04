@@ -1,7 +1,3 @@
-"""
-abstract for the photobooth-app backends
-"""
-
 import logging
 import threading
 import time

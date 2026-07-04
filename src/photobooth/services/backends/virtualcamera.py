@@ -1,7 +1,3 @@
-"""
-Virtual Camera backend for testing.
-"""
-
 import logging
 import mmap
 import time
