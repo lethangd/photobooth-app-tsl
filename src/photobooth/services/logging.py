@@ -148,6 +148,7 @@ class LoggingService(BaseService):
         """mute some logger by rasing their log level"""
 
         for name in [
+            "picamera2",
             "picamera2.picamera2",
             "sse_starlette.sse",
             "PIL",

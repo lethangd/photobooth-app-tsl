@@ -17,7 +17,7 @@ from ...utils.helper import filename_str_time
 from ..config.groups.cameras import GroupCameraPicamera2
 from .abstractbackend import AbstractBackend, BackendStats, StillRequest
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app_picamera2")
 
 
 class PicamLoresData(io.BufferedIOBase):
