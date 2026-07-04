@@ -4,7 +4,7 @@ import pytest
 
 try:
     from photobooth.services.backends.webcamv4l import WebcamV4lBackend
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     pytest.skip(reason="linuxpy not available", allow_module_level=True)
 
 from photobooth.appconfig import appconfig

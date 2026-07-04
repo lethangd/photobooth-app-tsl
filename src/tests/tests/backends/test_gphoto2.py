@@ -8,7 +8,7 @@ from PIL import Image
 
 try:
     from photobooth.services.backends.gphoto2 import Gphoto2Backend, gp
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     pytest.skip(reason="gphoto2 not available", allow_module_level=True)
 
 from photobooth.appconfig import appconfig
