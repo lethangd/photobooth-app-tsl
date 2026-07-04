@@ -116,7 +116,7 @@ def pyav_rescale_gif_libswscale(gif_filepath: Path, tmp_path):
     container_in = av.open(gif_filepath)
     stream_in = container_in.streams.video[0]
     tb_in = stream_in.time_base  # usually 1/100 for GIF
-
+    assert tb_in
     decoded_frames = list(container_in.decode(stream_in))
 
     # --- COMPUTE TARGET SIZE ---
@@ -140,10 +140,11 @@ def pyav_rescale_gif_libswscale(gif_filepath: Path, tmp_path):
         stream_out.width = new_w
         stream_out.height = new_h
         stream_out.pix_fmt = "rgb8"
-
+        last_pts = 0
         for f in decoded_frames:
             # libswscale resize + convert to rgb8
             frame = f.reformat(width=new_w, height=new_h, format="rgb8")
+            assert frame.pts
             last_pts = frame.pts + frame.duration
 
             for packet in stream_out.encode(frame):
