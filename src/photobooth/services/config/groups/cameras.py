@@ -160,29 +160,27 @@ class GroupCameraGphoto2(BaseModelCamera):
     model_config = ConfigDict(title="Gphoto2")
     backend_type: Literal["Gphoto2"] = "Gphoto2"
 
-    gcapture_target: str = Field(
-        default="",
-        description="Set capture target (examples: 'Internal RAM', 'Memory card'). To keep images, capture to a disk target. Empty means default of camera (mostly RAM).",
+    parameterset_device_init: list[Gphoto2Parameters] = Field(
+        default=[
+            Gphoto2Parameters(name="capturetarget", value="", enabled=False),
+            Gphoto2Parameters(name="iso", value="Auto"),
+        ],
     )
-
     parameterset_standby: list[Gphoto2Parameters] = Field(
         default=[
             Gphoto2Parameters(name="viewfinder", value="0"),
-            Gphoto2Parameters(name="eosmoviemode", value="0"),
         ],
     )
 
     parameterset_video: list[Gphoto2Parameters] = Field(
         default=[
-            Gphoto2Parameters(name="iso", value="Auto"),
-            Gphoto2Parameters(name="eosmoviemode", value="1"),
+            Gphoto2Parameters(name="viewfinder", value="1"),
         ],
     )
 
     parameterset_still: list[Gphoto2Parameters] = Field(
         default=[
             Gphoto2Parameters(name="viewfinder", value="0", note="allows camera to autofocus fast in native mode not contrast mode"),
-            Gphoto2Parameters(name="eosmoviemode", value="0"),
         ],
     )
 
