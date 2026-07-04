@@ -40,6 +40,9 @@ class Capture:
     filepath: Path
     uuid: UUID = field(default_factory=uuid4)
 
+    def __repr__(self):
+        return f"<{self.__class__.__name__}> file {self.filepath}"
+
 
 @dataclass
 class CaptureSet:
@@ -87,7 +90,7 @@ class JobModelBase(ABC, Generic[T]):
         return captures_to_take
 
     def __repr__(self):
-        return f"{self.__class__.__name__}, {self._job_identifier=}, {self.total_captures_to_take=}"
+        return f"<{self.__class__.__name__}> job-id={self._job_identifier} total captures to take={self.total_captures_to_take}"
 
     def export(self) -> dict[str, str | int | float | None | dict]:
         """Export model as dict for UI (needs to be jsonserializable)"""
