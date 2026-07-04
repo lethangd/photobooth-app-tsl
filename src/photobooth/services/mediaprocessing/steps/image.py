@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import time
 from collections import OrderedDict
 from datetime import datetime
 from enum import Enum
@@ -15,6 +14,7 @@ from pydantic_extra_types.color import Color
 
 from ....plugins import pm
 from ....utils.exceptions import PipelineError
+from ....utils.metrics_timer import MetricsTimer
 from ....utils.rembg.rembg import remove
 from ....utils.rembg.session_factory import new_session
 from ....utils.rembg.sessions.base import BaseSession
@@ -237,11 +237,8 @@ class RemovebgStep(PipelineStep):
                 REMOVE_CACHE.move_to_end(key)
                 return REMOVE_CACHE[key]
 
-            tms = time.monotonic()
-            result = remove(img=img, session=session)
-            tme = time.monotonic()
-
-            logger.info(f"remove background using AI duration took {tme - tms:0.3}s")
+            with MetricsTimer(f"background removal using AI model '{self.model_name}'"):
+                result = remove(img=img, session=session)
 
             REMOVE_CACHE[key] = result
             REMOVE_CACHE.move_to_end(key)
