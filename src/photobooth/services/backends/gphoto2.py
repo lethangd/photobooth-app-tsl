@@ -72,6 +72,10 @@ class Gphoto2Backend(AbstractBackend):
     def stop(self):
         super().stop()
 
+    def _handle_switchmode_init(self):
+        logger.debug("configure camera during device init")
+        self._handle_switchmode(self._config.parameterset_device_init)
+
     def _handle_switchmode_video_mode(self):
         logger.debug("configure camera optimized for idle/video")
 

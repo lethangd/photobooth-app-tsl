@@ -53,6 +53,9 @@ class WebcamV4lBackend(AbstractBackend):
     def stop(self):
         super().stop()
 
+    def _handle_switchmode_init(self):
+        pass
+
     def _handle_switchmode_video_mode(self):
         self._set_mode(self._config.CAM_RESOLUTION_WIDTH, self._config.CAM_RESOLUTION_HEIGHT)
         self._skip_frames_after_switch: int = 1

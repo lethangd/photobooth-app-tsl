@@ -68,6 +68,9 @@ class DigicamcontrolBackend(AbstractBackend):
     # INTERNAL FUNCTIONS
     #
 
+    def _handle_switchmode_init(self):
+        pass
+
     def _handle_switchmode_still_mode(self):
         pass
 

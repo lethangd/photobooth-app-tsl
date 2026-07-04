@@ -154,6 +154,9 @@ class VirtualCameraBackend(AbstractBackend):
 
             return self._lores_data[index_subdevice].data
 
+    def _handle_switchmode_init(self):
+        pass
+
     def _handle_switchmode_video_mode(self):
         pass
 

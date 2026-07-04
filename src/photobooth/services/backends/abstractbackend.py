@@ -237,6 +237,10 @@ class ModeController:
 
 class AbstractBackend(ResilientService, ABC):
     @abstractmethod
+    def _handle_switchmode_init(self):
+        """called during device setup"""
+
+    @abstractmethod
     def _handle_switchmode_standby(self):
         """called internally by supervising if liveview frames are requested"""
 

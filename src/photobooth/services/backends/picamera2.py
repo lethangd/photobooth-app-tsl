@@ -176,6 +176,9 @@ class Picamera2Backend(AbstractBackend):
         else:
             logger.info("no picamera2 video encoder active that could be stopped")
 
+    def _handle_switchmode_init(self):
+        pass
+
     def _handle_switchmode_video_mode(self):
         logger.debug("change to preview mode requested")
         self._switch_mode(self._video_configuration)
