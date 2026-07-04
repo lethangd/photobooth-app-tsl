@@ -99,6 +99,8 @@ def webcameras() -> list[str]:
             return _webcameras_linux()
         elif sys.platform == "darwin":
             return _webcameras_darwin()
+        else:
+            raise OSError(f"platform {sys.platform} not supported")
 
 
 def dslr_gphoto2() -> list[int]:
