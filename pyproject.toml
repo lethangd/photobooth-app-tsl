@@ -64,6 +64,8 @@ dependencies = [
   "pynng~=0.9.0",                                                                          # needs python3-dev package
   "requests",
   "pywin32; platform_system == 'Windows'",
+  # "pyqt5>=5.15.11",
+  # "tzlocal>=5.4.4",
 ]
 
 [project.scripts]
@@ -99,7 +101,7 @@ concurrency = ["thread", "multiprocessing"]
 #[tool.zuban] 
 #mode = "default"
 
-[tool.pyright]
+[tool.basedpyright]
 venvPath = "."
 venv = ".venv"
 ignore = ["./experimental/"]
@@ -142,8 +144,9 @@ dev = [
   "httpx2",
   "pydot",
   "pre-commit",
-  "pyright",
-  #"zuban>=0.9.0",
+  "basedpyright>=1.39.9",
+  # "pyright",
+  # "zuban>=0.9.0",
   "poethepoet",
   "wigglecam[node]",
   "pyturbojpeg~=1.8.0",
@@ -159,7 +162,7 @@ default-groups = [
 # uv does not yet support [tool.pdm.scripts], so we skip this for now... https://github.com/astral-sh/uv/issues/5903
 [tool.poe.tasks]
 lint = [
-  { cmd = "uv run pyright" },
+  { cmd = "uv run basedpyright" },
   { cmd = "uv run ruff check" },
   { cmd = "uv run ruff format --check" },
 ]
