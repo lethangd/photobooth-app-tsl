@@ -113,15 +113,15 @@ def test_generate_resized():
         mr.resize(filepath_in=Path("somefile.jpeg"), filepath_out=Path("dontcare"), scaled_min_length=100)
         mock.assert_called_once()
 
-    with patch.object(mr, "resize_animation_pillow") as mock:
+    with patch.object(mr, "resize_gif_pyav") as mock:
         mr.resize(filepath_in=Path("somefile.gif"), filepath_out=Path("dontcare"), scaled_min_length=100)
         mock.assert_called_once()
 
-    with patch.object(mr, "resize_animation_pillow") as mock:
+    with patch.object(mr, "resize_webp_avif_gif_pillow") as mock:
         mr.resize(filepath_in=Path("somefile.webp"), filepath_out=Path("dontcare"), scaled_min_length=100)
         mock.assert_called_once()
 
-    with patch.object(mr, "resize_animation_pillow") as mock:
+    with patch.object(mr, "resize_webp_avif_gif_pillow") as mock:
         mr.resize(filepath_in=Path("somefile.avif"), filepath_out=Path("dontcare"), scaled_min_length=100)
         mock.assert_called_once()
 

@@ -84,7 +84,7 @@ class JobModelAnimation(JobModelBase[AnimationConfigurationSet]):
             )
             phase1_mediaitems.append(mediaitem)
 
-            logger.info(f"capture {mediaitem=} successful")
+            logger.info(f"capture {mediaitem} successful")
 
         assert len(phase1_mediaitems) > 0
 
