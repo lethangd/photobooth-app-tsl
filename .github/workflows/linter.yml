@@ -1,4 +1,4 @@
-name: Pyright static type checking
+name: linter static type checking
 permissions:
   contents: read
   
@@ -17,18 +17,18 @@ jobs:
       - name: Set up Python and uv
         uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.13'
+          python-version: '3.14'
           enable-cache: true
-      - name: Install Node.js (needed for Pyright)
-        uses: actions/setup-node@v6
-        with:
-          node-version: current
+      # - name: Install Node.js (needed for Pyright)
+      #   uses: actions/setup-node@v6
+      #   with:
+      #     node-version: current
 
       - name: install the project
         run: |
           uv sync --all-extras --dev
           
-      - name: Run Pyright static type checker
+      - name: Run linter
         run: |
-          uv run pyright
+          uv run poe lint
       
