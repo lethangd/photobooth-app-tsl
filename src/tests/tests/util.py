@@ -7,6 +7,7 @@ from tempfile import NamedTemporaryFile
 from uuid import uuid4
 
 import av
+import numpy as np
 import piexif
 from PIL import Image, ImageChops
 
@@ -126,21 +127,22 @@ def dummy_mediaitem():
     return new_item_instance
 
 
-def dummy_animation(filepath: Path):
-    # Create two dummy frames (solid colors for simplicity)
-    frame1 = Image.new("RGB", (600, 400), color=(255, 0, 0))  # red
-    frame2 = Image.new("RGB", (600, 400), color=(0, 255, 0))  # green
-    frame3 = Image.new("RGB", (600, 400), color=(0, 0, 255))  # blue
+def dummy_animation(filepath: Path, size=(600, 400), num_frames: int = 6, noise_std=100):
 
-    # Save into a BytesIO buffer as animated WebP
+    frames = []
 
-    frame1.save(
+    for _ in range(num_frames):
+        arr = np.random.normal(127, noise_std, (size[1], size[0], 3)).clip(0, 255).astype(np.uint8)
+        frames.append(Image.fromarray(arr, "RGB"))
+
+    durations = [200 + i * 50 for i in range(len(frames))]
+
+    frames[0].save(
         filepath,
-        format=None,
         save_all=True,
-        append_images=[frame2, frame3],
-        duration=[200, 400, 200],  # per-frame duration in ms
-        loop=0,  # 0 = infinite loop
+        append_images=frames[1:],
+        duration=durations,
+        loop=0,
     )
 
 
