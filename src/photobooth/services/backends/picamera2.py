@@ -337,20 +337,21 @@ class Picamera2Backend(AbstractBackend):
                     logger.warning("force switchmode to capture config right before taking picture")
                     # ensure cam is in capture quality mode even if there was no countdown
                     # triggered beforehand usually there is a countdown, but this is to be safe
-                    self._mode_machine.process_switchmode("still")
+                    with self._mode_machine.ext_mode_switch_lock:
+                        self._mode_machine.process_switchmode("still")
 
-                    # capture hq picture
-                    filepath = Path(
-                        NamedTemporaryFile(
-                            mode="wb",
-                            delete=False,
-                            dir="tmp",
-                            prefix=f"{filename_str_time()}_picamera2_",
-                            suffix=".jpg",
-                        ).name
-                    )
-                    # https://github.com/raspberrypi/picamera2/issues/1125#issuecomment-2387829290 fixed now, so use simple capture_file again
-                    _ = self._picamera2.capture_file(filepath, wait=1.5)  # type: ignore
+                        # capture hq picture
+                        filepath = Path(
+                            NamedTemporaryFile(
+                                mode="wb",
+                                delete=False,
+                                dir="tmp",
+                                prefix=f"{filename_str_time()}_picamera2_",
+                                suffix=".jpg",
+                            ).name
+                        )
+                        # https://github.com/raspberrypi/picamera2/issues/1125#issuecomment-2387829290 fixed now, so use simple capture_file again
+                        _ = self._picamera2.capture_file(filepath, wait=1.5)  # type: ignore
 
                     with req.condition:
                         req.result_file = filepath

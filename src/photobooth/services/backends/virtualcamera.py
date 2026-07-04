@@ -84,21 +84,22 @@ class VirtualCameraBackend(AbstractBackend):
                 req = self._hires_queue.popleft() if self._hires_queue else None
 
             if req:
-                self._mode_machine.process_switchmode("still")
+                with self._mode_machine.ext_mode_switch_lock:
+                    self._mode_machine.process_switchmode("still")
 
-                if isinstance(req, StillRequest):
-                    file = self._produce_still(req.subdevice_index)
-                    with req.condition:
-                        req.result_file = file
-                        req.condition.notify_all()
-                elif isinstance(req, MulticamRequest):
-                    files = self._produce_multicam()
-                    with req.condition:
-                        req.result_files = files
-                        req.condition.notify_all()
-                else:
-                    logger.warning(f"this backend does not support {type(req)} requests")
-                    continue
+                    if isinstance(req, StillRequest):
+                        file = self._produce_still(req.subdevice_index)
+                        with req.condition:
+                            req.result_file = file
+                            req.condition.notify_all()
+                    elif isinstance(req, MulticamRequest):
+                        files = self._produce_multicam()
+                        with req.condition:
+                            req.result_files = files
+                            req.condition.notify_all()
+                    else:
+                        logger.warning(f"this backend does not support {type(req)} requests")
+                        continue
 
             self._mode_machine.process_switchmode()
 

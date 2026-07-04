@@ -9,19 +9,15 @@ from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING
 
 import cv2
+import linuxpy.video.device as linuxpy_video_device
 import simplejpeg
 
 from ...utils.helper import filename_str_time
 from ..config.groups.cameras import GroupCameraV4l2
 from .abstractbackend import AbstractBackend, StillRequest
 
-try:
-    import linuxpy.video.device as linuxpy_video_device  # type: ignore
-except ImportError:
-    linuxpy_video_device = None
-
 if TYPE_CHECKING:
-    import linuxpy.video.device as linuxpy_video_device_type  # type: ignore
+    import linuxpy.video.device as linuxpy_video_device_type
 
 
 logger = logging.getLogger(__name__)
@@ -185,35 +181,38 @@ class WebcamV4lBackend(AbstractBackend):
                 req = self._hires_queue.popleft() if self._hires_queue else None
 
             if req:
-                self._mode_machine.process_switchmode()
+                with self._mode_machine.ext_mode_switch_lock:
+                    self._mode_machine.process_switchmode()
 
-                if isinstance(req, StillRequest):
-                    with self._capture:
-                        for frame in self._capture:
-                            if frame.frame_nb == 0:
-                                # always flush the very first frame. some cameras might send garbage (here Insta360 Link 2C Pro)
-                                continue
+                    if isinstance(req, StillRequest):
+                        with self._capture:
+                            for frame in self._capture:
+                                if frame.frame_nb == 0:
+                                    # always flush the very first frame. some cameras might send garbage (here Insta360 Link 2C Pro)
+                                    continue
 
-                            if frame.frame_nb < self._skip_frames_after_switch:
-                                continue
+                                if frame.frame_nb < self._skip_frames_after_switch:
+                                    continue
 
-                            logger.info(f"flushed {self._config.flush_number_frames_after_switch} frames before capture high resolution image")
+                                logger.info(f"flushed {self._config.flush_number_frames_after_switch} frames before capture high resolution image")
 
-                            with NamedTemporaryFile(mode="wb", delete=False, dir="tmp", prefix=f"{filename_str_time()}_v4l2_", suffix=".jpg") as f:
-                                f.write(self._frame_to_jpeg(frame))
+                                with NamedTemporaryFile(
+                                    mode="wb", delete=False, dir="tmp", prefix=f"{filename_str_time()}_v4l2_", suffix=".jpg"
+                                ) as f:
+                                    f.write(self._frame_to_jpeg(frame))
 
-                            logger.info(f"written image to {Path(f.name)}")
+                                logger.info(f"written image to {Path(f.name)}")
 
-                            with req.condition:
-                                req.result_file = Path(f.name)
-                                req.condition.notify_all()
+                                with req.condition:
+                                    req.result_file = Path(f.name)
+                                    req.condition.notify_all()
 
-                            # job done
-                            break
+                                # job done
+                                break
 
-                else:
-                    logger.warning(f"this backend does not support {type(req)} requests")
-                    continue
+                    else:
+                        logger.warning(f"this backend does not support {type(req)} requests")
+                        continue
 
             self._mode_machine.process_switchmode()
 
