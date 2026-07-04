@@ -1,7 +1,3 @@
-"""
-Testing VIRTUALCAMERA Backend
-"""
-
 import logging
 from collections.abc import Generator
 

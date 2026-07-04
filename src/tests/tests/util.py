@@ -20,11 +20,8 @@ logger = logging.getLogger(name=None)
 
 
 def block_until_device_is_running(backend: AbstractBackend):
-    """Mostly used for testing to ensure the device is up.
+    """Mostly used for testing to ensure the device is up."""
 
-    Returns:
-        _type_: _description_
-    """
     counter = 0
     while not backend.is_running():
         logger.debug("wait for startup")

@@ -4,11 +4,18 @@ from unittest.mock import patch
 
 import pytest
 
-from photobooth.appconfig import appconfig
-from photobooth.services.config.groups.cameras import GroupCameraPicamera2
 from photobooth.utils.helper import is_rpi
 
+if not is_rpi():
+    pytest.skip("platform not raspberry pi, test of backends skipped", allow_module_level=True)
+
+from photobooth.appconfig import appconfig
+from photobooth.services.backends.picamera2 import Picamera2Backend
+from photobooth.services.config.groups.cameras import GroupCameraPicamera2
+
 from ..util import block_until_device_is_running, get_images
+
+logger = logging.getLogger(name=None)
 
 
 @pytest.fixture(autouse=True)
@@ -18,20 +25,8 @@ def run_around_tests():
     yield
 
 
-logger = logging.getLogger(name=None)
-
-## check skip if wrong platform
-
-if not is_rpi():
-    pytest.skip("platform not raspberry pi, test of backends skipped", allow_module_level=True)
-
-
-## fixtures
-
-
 @pytest.fixture(scope="module")
 def backend_picamera2():
-    from photobooth.services.backends.picamera2 import Picamera2Backend
 
     # setup
     backend = Picamera2Backend(GroupCameraPicamera2(optimized_lowlight_short_exposure=True))

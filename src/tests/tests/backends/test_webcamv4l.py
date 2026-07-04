@@ -2,8 +2,12 @@ import logging
 
 import pytest
 
+try:
+    from photobooth.services.backends.webcamv4l import WebcamV4lBackend
+except ImportError:
+    pytest.skip(reason="linuxpy not available", allow_module_level=True)
+
 from photobooth.appconfig import appconfig
-from photobooth.services.backends.webcamv4l import WebcamV4lBackend, linuxpy_video_device
 from photobooth.services.config.groups.cameras import GroupCameraV4l2
 from photobooth.utils.enumerate import webcameras
 
@@ -17,11 +21,6 @@ def run_around_tests():
     appconfig.reset_defaults()
 
     yield
-
-
-## check skip if wrong platform
-if linuxpy_video_device is None:
-    pytest.skip("linuxpy module not available", allow_module_level=True)
 
 
 @pytest.fixture(scope="module")
@@ -83,4 +82,7 @@ def test_get_images_webcamv4l_yuvy(backend_v4l: WebcamV4lBackend):
     backend_v4l.stop()
     backend_v4l.start()
     block_until_device_is_running(backend_v4l)
+    assert backend_v4l._capture
+    if backend_v4l._capture.get_format().pixel_format != "YUYV":
+        pytest.skip("the camera seems not to support YUYV")
     get_images(backend_v4l)

@@ -6,8 +6,12 @@ import time
 import pytest
 from PIL import Image
 
+try:
+    from photobooth.services.backends.gphoto2 import Gphoto2Backend, gp
+except ImportError:
+    pytest.skip(reason="gphoto2 not available", allow_module_level=True)
+
 from photobooth.appconfig import appconfig
-from photobooth.services.backends.gphoto2 import Gphoto2Backend, gp
 from photobooth.services.config.groups.cameras import Gphoto2Parameters, GroupCameraGphoto2
 from photobooth.utils.enumerate import dslr_gphoto2 as enumerate_dslr_gphoto2
 
@@ -21,16 +25,6 @@ def run_around_tests():
     appconfig.reset_defaults()
 
     yield
-
-
-"""
-prepare config for testing
-"""
-
-
-## check skip if wrong platform
-if gp is None:
-    pytest.skip("gphoto2 not available", allow_module_level=True)
 
 
 @pytest.fixture(scope="module")

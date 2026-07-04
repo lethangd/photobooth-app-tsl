@@ -107,10 +107,7 @@ def dslr_gphoto2() -> list[int]:
     with enumerate_lock:
         available_indexes: list[int] = []
 
-        try:
-            import gphoto2 as gp  # type: ignore
-        except ImportError as exc:
-            raise RuntimeError("cannot enumerate gphoto2 cameras because not supported by platform or not installed.") from exc
+        import gphoto2 as gp
 
         camera_list = gp.Camera.autodetect()  # pyright: ignore [reportAttributeAccessIssue]
         if len(camera_list) == 0:
