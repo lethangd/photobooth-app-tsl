@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 from subprocess import PIPE, Popen
 
+import av
 import pytest
 from PIL import Image, ImageSequence
 from turbojpeg import TurboJPEG
@@ -21,7 +22,7 @@ def ffmpeg_hq_optimizedquality_scale(gif_filepath: Path, tmp_path):
             "-i",
             str(gif_filepath),
             "-vf",
-            "scale=500:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+            "scale=1000:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
             str(tmp_path / "ffmpeg_hq_optimizedquality_scale.gif"),  # https://docs.python.org/3/library/pathlib.html#operators
         ]
     )
@@ -39,7 +40,7 @@ def ffmpeg_hq_optimizedspeed_scale(gif_filepath: Path, tmp_path):
             "-i",
             str(gif_filepath),
             "-vf",
-            "scale=500:-1:flags=bicubic,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+            "scale=1000:-1:flags=bicubic,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
             str(tmp_path / "ffmpeg_hq_optimizedspeed_scale.gif"),  # https://docs.python.org/3/library/pathlib.html#operators
         ]
     )
@@ -58,7 +59,7 @@ def ffmpeg_stdin_scale(gif_filepath: Path, tmp_path):
             "-i",
             "-",
             "-vf",
-            "scale=500:-1:flags=bicubic,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+            "scale=1000:-1:flags=bicubic,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
             str(tmp_path / "ffmpeg_stdin_scale.gif"),  # https://docs.python.org/3/library/pathlib.html#operators
         ],
         stdin=PIPE,
@@ -89,7 +90,7 @@ def pil_scale(gif_filepath: Path, tmp_path):
         durations.append(duration)
 
     # determine target size
-    target_size = (500, 500)
+    target_size = (1000, 800)
 
     # Get sequence iterator
     frames = ImageSequence.Iterator(gif_image)
@@ -109,12 +110,63 @@ def pil_scale(gif_filepath: Path, tmp_path):
     )
 
 
+def pyav_rescale_gif_libswscale(gif_filepath: Path, tmp_path):
+    target_max_size = 1000
+    # --- DECODE GIF ---
+    container_in = av.open(gif_filepath)
+    stream_in = container_in.streams.video[0]
+    tb_in = stream_in.time_base  # usually 1/100 for GIF
+
+    decoded_frames = list(container_in.decode(stream_in))
+
+    # --- COMPUTE TARGET SIZE ---
+    # Use the first frame to determine scaling
+    w = decoded_frames[0].width
+    h = decoded_frames[0].height
+
+    scale = target_max_size / max(w, h)
+    if scale < 1.0:
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+    else:
+        new_w, new_h = w, h
+
+    # --- ENCODE GIF ---
+
+    with av.open(tmp_path / "out_animation.gif", mode="w") as container_out:
+        stream_out = container_out.add_stream("gif", rate=25)
+        stream_out.time_base = tb_in  # ms
+        stream_out.codec_context.time_base = tb_in
+        stream_out.width = new_w
+        stream_out.height = new_h
+        stream_out.pix_fmt = "rgb8"
+
+        for f in decoded_frames:
+            # libswscale resize + convert to rgb8
+            frame = f.reformat(width=new_w, height=new_h, format="rgb8")
+            last_pts = frame.pts + frame.duration
+
+            for packet in stream_out.encode(frame):
+                container_out.mux(packet)
+
+        # duplicate last frame
+        last = decoded_frames[-1]
+        last.pts = last_pts
+        for packet in stream_out.encode(last):
+            container_out.mux(packet)
+
+        # flush
+        for packet in stream_out.encode():
+            container_out.mux(packet)
+
+
 @pytest.fixture(
     params=[
         "pil_scale",
         "ffmpeg_stdin_scale",
         "ffmpeg_hq_optimizedquality_scale",
         "ffmpeg_hq_optimizedspeed_scale",
+        "pyav_rescale_gif_libswscale",
     ]
 )
 def library(request):
@@ -129,11 +181,16 @@ def image(file) -> bytes:
     return in_file_read
 
 
-@pytest.mark.benchmark(
-    group="scalegif",
-)
+@pytest.mark.benchmark(group="scalegif")
 def test_libraries_scalegif(library, benchmark, tmp_path):
     dummy_animation_file = tmp_path / "in_animation.gif"
-    dummy_animation(dummy_animation_file)
+    dummy_animation(dummy_animation_file, (1920, 1080))
     benchmark(eval(library), gif_filepath=dummy_animation_file, tmp_path=tmp_path)
+    assert True
+
+
+def test_libraries_scalegif1(tmp_path):
+    dummy_animation_file = tmp_path / "in_animation.gif"
+    dummy_animation(dummy_animation_file, (1920, 1080))
+    pyav_rescale_gif_libswscale(gif_filepath=dummy_animation_file, tmp_path=tmp_path)
     assert True
