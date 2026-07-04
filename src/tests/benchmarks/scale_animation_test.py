@@ -1,4 +1,3 @@
-import io
 import logging
 from pathlib import Path
 from subprocess import PIPE, Popen
@@ -97,11 +96,10 @@ def pil_scale(gif_filepath: Path, tmp_path):
     resized_frames = thumbnails(frames)
 
     # Save output
-    out = io.BytesIO()
     om = next(resized_frames)  # Handle first frame separately
     om.info = gif_image.info  # Copy original information (duration is only for first frame so on save handled separately)
     om.save(
-        out,
+        str(tmp_path / "out_animation.gif"),
         format="gif",
         save_all=True,
         append_images=list(resized_frames),
@@ -109,8 +107,6 @@ def pil_scale(gif_filepath: Path, tmp_path):
         optimize=True,
         loop=0,  # loop forever
     )
-
-    return out.getvalue()
 
 
 @pytest.fixture(
