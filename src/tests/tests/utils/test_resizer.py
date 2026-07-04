@@ -49,12 +49,24 @@ def test_resize_jpg_force_pillow(tmp_path):
         img.verify()
 
 
-def test_resize_gif(tmp_path):
+def test_resize_gif_pillow(tmp_path):
+    # testing gif with pillow because it's still around, but too slow compared to pyav.
     input = tmp_path / "anim.gif"
     output = tmp_path / "animation.gif"
     dummy_animation(input)
 
-    mr.resize_animation_pillow(filepath_in=input, filepath_out=output, scaled_min_length=100)
+    mr.resize_webp_avif_gif_pillow(filepath_in=input, filepath_out=output, scaled_min_length=100)
+
+    with Image.open(output) as img:
+        img.verify()
+
+
+def test_resize_gif_pyav(tmp_path):
+    input = tmp_path / "anim.gif"
+    output = tmp_path / "animation.gif"
+    dummy_animation(input)
+
+    mr.resize_gif_pyav(filepath_in=input, filepath_out=output, scaled_min_length=100)
 
     with Image.open(output) as img:
         img.verify()
@@ -65,7 +77,7 @@ def test_resize_webp(tmp_path):
     output = tmp_path / "animation.webp"
     dummy_animation(input)
 
-    mr.resize_animation_pillow(filepath_in=input, filepath_out=output, scaled_min_length=100)
+    mr.resize_webp_avif_gif_pillow(filepath_in=input, filepath_out=output, scaled_min_length=100)
 
     with Image.open(output) as img:
         img.verify()
@@ -76,7 +88,7 @@ def test_resize_avif(tmp_path):
     output = tmp_path / "animation.avif"
     dummy_animation(input)
 
-    mr.resize_animation_pillow(filepath_in=input, filepath_out=output, scaled_min_length=100)
+    mr.resize_webp_avif_gif_pillow(filepath_in=input, filepath_out=output, scaled_min_length=100)
 
     with Image.open(output) as img:
         img.verify()

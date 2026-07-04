@@ -7,10 +7,12 @@ import piexif
 from av import VideoStream
 from PIL import Image, ImageOps, ImageSequence
 from simplejpeg import decode_jpeg, decode_jpeg_header, encode_jpeg
+from typing_extensions import deprecated
 
 logger = logging.getLogger(__name__)
 
 
+@deprecated("use resize_jpeg_simplejpeg")
 def resize_jpeg_pillow(filepath_in: Path, filepath_out: Path, scaled_min_length: int):
     """scale a jpeg buffer to another buffer using pillow"""
 
@@ -64,10 +66,9 @@ def resize_jpeg_simplejpeg(filepath_in: Path, filepath_out: Path, scaled_min_len
 
 def resize_jpeg(filepath_in: Path, filepath_out: Path, scaled_min_length: int):
     resize_jpeg_simplejpeg(filepath_in, filepath_out, scaled_min_length)  # faster
-    # resize_jpeg_pillow(filepath_in, filepath_out, scaled_min_length) # possibly better quality and more accurate dimensions
 
 
-def resize_animation_pillow(filepath_in: Path, filepath_out: Path, scaled_min_length: int):
+def resize_webp_avif_gif_pillow(filepath_in: Path, filepath_out: Path, scaled_min_length: int):
     """Scale an animated image sequence (GIF/WebP/AVIF) and preserve frame durations."""
 
     # format specific optimizations:
@@ -102,6 +103,60 @@ def resize_animation_pillow(filepath_in: Path, filepath_out: Path, scaled_min_le
         loop=0,
         **format_params,
     )
+
+
+def resize_gif_pyav(filepath_in: Path, filepath_out: Path, scaled_min_length: int):
+    with av.open(filepath_in) as container_in, av.open(filepath_out, mode="w") as container_out:
+        stream_in = container_in.streams.video[0]
+        tb_in = stream_in.time_base  # GIF timebase (usually 1/100)
+        assert tb_in
+
+        # --- Determine output size from first frame
+        first_frame = next(container_in.decode(stream_in))
+        w, h = first_frame.width, first_frame.height
+
+        scale = scaled_min_length / max(w, h)
+        if scale < 1.0:
+            new_w = int(w * scale)
+            new_h = int(h * scale)
+        else:
+            new_w, new_h = w, h
+
+        # Rewind
+        container_in.seek(0)
+
+        # --- OUTPUT ---
+        stream_out = container_out.add_stream("gif", rate=25)
+        stream_out.time_base = tb_in
+        stream_out.codec_context.time_base = tb_in
+        stream_out.width = new_w
+        stream_out.height = new_h
+        stream_out.pix_fmt = "rgb8"
+
+        last_pts = 0
+        rescaled = None
+
+        # --- STREAMING DECODE → RESCALE → ENCODE ---
+        for frame in container_in.decode(stream_in):
+            assert frame.pts is not None
+            last_pts = frame.pts + frame.duration
+
+            # Rescale + convert to rgb8 using libswscale
+            rescaled = frame.reformat(width=new_w, height=new_h, format="rgb8", interpolation="BICUBIC")
+
+            for packet in stream_out.encode(rescaled):
+                container_out.mux(packet)
+
+        # --- Duplicate last frame ---
+        if rescaled is not None:
+            # dup = rescaled
+            rescaled.pts = last_pts
+            for packet in stream_out.encode(rescaled):
+                container_out.mux(packet)
+
+        # --- Flush ---
+        for packet in stream_out.encode():
+            container_out.mux(packet)
 
 
 def resize_mp4(filepath_in: Path, filepath_out: Path, scaled_min_length: int):
@@ -169,9 +224,12 @@ def resize(filepath_in: Path, filepath_out: Path, scaled_min_length: int) -> Non
 
     if suffix.lower() in (".jpg", ".jpeg"):
         resize_jpeg(filepath_in, filepath_out, scaled_min_length)
-    elif suffix.lower() in (".gif", ".webp", ".avif"):
-        resize_animation_pillow(filepath_in, filepath_out, scaled_min_length)
+    elif suffix.lower() == ".gif":
+        resize_gif_pyav(filepath_in, filepath_out, scaled_min_length)
+        # could be done by pillow also, but pillow is very slow at it, so we use pyav.
     elif suffix.lower() == ".mp4":
         resize_mp4(filepath_in, filepath_out, scaled_min_length)
+    elif suffix.lower() in (".webp", ".avif"):
+        resize_webp_avif_gif_pillow(filepath_in, filepath_out, scaled_min_length)
     else:
         raise RuntimeError(f"filetype with suffix '{suffix}' not supported")
