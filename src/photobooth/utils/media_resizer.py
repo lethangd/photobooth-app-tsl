@@ -87,7 +87,7 @@ def resize_animation_pillow(filepath_in: Path, filepath_out: Path, scaled_min_le
     for frame in ImageSequence.Iterator(pil_animated_img):
         frame.load()  # ensure metadata is parsed so for AVIF/WEBP duration is avail. GIF is different and would not need this.
         thumb = frame.copy()
-        thumb.thumbnail((scaled_min_length, scaled_min_length), Image.Resampling.LANCZOS)
+        thumb.thumbnail((scaled_min_length, scaled_min_length), Image.Resampling.BICUBIC)
         resized_frames.append(thumb)
         d = frame.info.get("duration", pil_animated_img.info.get("duration", 1000))
         durations.append(int(d))
