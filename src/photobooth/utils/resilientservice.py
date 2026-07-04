@@ -129,7 +129,7 @@ class ResilientService(ABC):
             logger.debug(f"{self}-resilient service starting")
 
             self._stop_event.clear()
-            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread = threading.Thread(name=self.__class__.__name__, target=self._run, daemon=True)
             self._thread.start()
             self._started = True
 

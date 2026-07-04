@@ -144,7 +144,7 @@ class ModeController:
         if self.idle_timeout:
             assert self.idle_timeout > 5, "The idle timeout to set the camera to standby needs to be disabled or at least 5s."
 
-            self._monitor_thread = StoppableThread(target=self._idle_monitor, daemon=True)
+            self._monitor_thread = StoppableThread(name="modecontroller_monitor", target=self._idle_monitor, daemon=True)
             self._monitor_thread.start()
 
     def stop(self):
