@@ -50,7 +50,7 @@ async def websocket_endpoint(websocket: WebSocket, index_device: int | None = No
                 break  # success, don't execute for...else:
 
             except TimeoutError:  # backend timeout (mode switching, ...)
-                logger.debug(f"camera timeout ({attempt + 1}/{retries})")
+                logger.debug(f"camera livestream timeout ({attempt + 1}/{retries})")
                 continue  # retry
             except BackendNotRunning:
                 logger.info("backend stopped, closing stream")
