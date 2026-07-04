@@ -163,6 +163,7 @@ class GroupCameraGphoto2(BaseModelCamera):
     parameterset_device_init: list[Gphoto2Parameters] = Field(
         default=[
             Gphoto2Parameters(name="capturetarget", value="", enabled=False),
+            Gphoto2Parameters(name="shutterspeed", value="1/50", enabled=False),
             Gphoto2Parameters(name="iso", value="Auto"),
         ],
     )
