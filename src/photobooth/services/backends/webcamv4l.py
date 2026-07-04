@@ -58,11 +58,11 @@ class WebcamV4lBackend(AbstractBackend):
 
     def _handle_switchmode_video_mode(self):
         self._set_mode(self._config.CAM_RESOLUTION_WIDTH, self._config.CAM_RESOLUTION_HEIGHT)
-        self._skip_frames_after_switch: int = 1
+        self._skip_frames_after_switch = 1
 
     def _handle_switchmode_still_mode(self):
         self._set_mode(self._config.HIRES_CAM_RESOLUTION_WIDTH, self._config.HIRES_CAM_RESOLUTION_HEIGHT)
-        self._skip_frames_after_switch: int = 1 + self._config.flush_number_frames_after_switch
+        self._skip_frames_after_switch = 1 + self._config.flush_number_frames_after_switch
 
     def _handle_switchmode_standby(self):
         pass
