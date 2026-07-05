@@ -54,8 +54,16 @@ class SynchronizerRclone(BasePlugin[SynchronizerConfig]):
         )
         self._rclone_client.start()
 
-        self._regular_sync = ThreadedRegularSync(self._rclone_client, _full_sync_remotes, sync_interval_s=60 * self._config.common.full_sync_interval)
-        self._immediate_pipeline = ThreadedImmediateSyncPipeline(self._rclone_client, _immediate_sync_remotes)
+        self._regular_sync = ThreadedRegularSync(
+            rclone=self._rclone_client,
+            fullsync_remotes=_full_sync_remotes,
+            sync_interval_s=60 * self._config.common.full_sync_interval,
+            usb_drive_change_monitor=self._config.common.usb_drive_change_monitor,
+        )
+        self._immediate_pipeline = ThreadedImmediateSyncPipeline(
+            rclone=self._rclone_client,
+            remotes=_immediate_sync_remotes,
+        )
 
         for r in _copy_sharepage_to_remotes:
             self._copy_sharepage_to_remotes(r)

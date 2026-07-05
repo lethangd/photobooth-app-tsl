@@ -22,6 +22,11 @@ class Common(BaseModel):
         description="Interval for full sync in minutes.",
     )
 
+    usb_drive_change_monitor: bool = Field(
+        default=True,
+        description="Check if a usb drive was attached to the computer and trigger a full sync run immediately. The drive has to be configured in the remotes section, also.",
+    )
+
     enabled_share_links: bool = Field(
         default=True,
         description="Global switch to enable the share link generation for QR codes in this plugin.",
@@ -75,7 +80,7 @@ class RcloneClientConfig(BaseModel):
 
     enable_webui: bool = Field(
         default=True,
-        description="Enable the web interface of rclone. It will be accessible from the device running the app only for security reasons. http://localhost:5572",
+        description="Enable the web interface of rclone. It will be accessible from the device running the app only for security reasons. http://localhost:5573",
     )
 
 
@@ -111,7 +116,7 @@ class RemoteConfig(BaseModel):
     )
     name: str = Field(
         default="",
-        description="Name of the remote given during configuration including the ':' at the end. You need to setup the remote separately using the rclone web-ui at http://localhost:5572/. To sync to local folders set '/' (Linux) or 'C:\\' (Windows) and use subdir as target.",
+        description="Name of the remote given during configuration including the ':' at the end. You need to setup the remote separately using the rclone web-ui at http://localhost:5573/. To sync to local folders set '/' (Linux) or 'C:\\' (Windows) and use subdir as target.",
         json_schema_extra={"list_api": "/api/admin/enumerate/rclone_remotes"},
     )
     subdir: str = Field(

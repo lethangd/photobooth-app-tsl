@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from queue import Empty, PriorityQueue
 
-from rclone_api.api import RcloneApi
+from rclone_api.api import RcloneApi, RcloneProcessException
 
 from photobooth.plugins.synchronizer_rclone.utils import get_corresponding_remote_file
 
@@ -88,6 +88,14 @@ class ThreadedImmediateSyncPipeline:
     def submit(self, task: TaskCopy | TaskDelete, priority: int = 10):
 
         for r in self.remotes:
+            try:
+                # returns a list of the remote main dir or raises an exception 404 if the folder does not exist
+                # this is used to avoid submitting operations to a usb drive that is not attached currently.
+                self.rclone.ls(r.name, r.subdir)
+            except RcloneProcessException as exc:
+                logger.info(f"{r.name}{r.subdir} not available, error code {exc.status}, skipping.")
+                continue
+
             # translate task to rclone operation for all remotes listed here
             if isinstance(task, TaskCopy):
                 op = CopyOperation(
