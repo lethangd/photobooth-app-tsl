@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import mmap
 import time
@@ -5,49 +6,56 @@ from itertools import cycle
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+import av
+import av.codec
+from av.video.reformatter import Interpolation, VideoReformatter
+from simplejpeg import encode_jpeg_yuv_planes
+
 from ...utils.helper import filename_str_time
-from ...utils.stoppablethread import StoppableThread
+from ...utils.metrics_timer import MetricsTimer
 from ..config.groups.cameras import GroupCameraVirtual
 from .abstractbackend import AbstractBackend, MulticamRequest, StillRequest
 
 logger = logging.getLogger(__name__)
 
 
-class CyclicImageSource:
-    def __init__(self):
-        self.jpeg_chunks_iter = cycle(self.__preprocess__source())  # cycle iterable to offset, len --> seek(offset), read(len)
+class FolderImageSource:
+    """
+    Read all JPEGs from a folder, mmap them once, and cycle endlessly.
+    """
 
-    def __preprocess__source(self):
-        jpeg_chunks: list[tuple[int, int]] = []  # offset, len --> seek(offset), read(len)
-        last_offset = 0
+    def __init__(self, folder: Path):
+        self.folder = folder
 
-        with open(Path(__file__).parent.joinpath("assets", "backend_virtualcamera", "video", "demovideo.mjpg").resolve(), "rb") as stream_file_obj:
-            # preprocess video, get chunks of jpeg to slice out of mjpg file (which is just jpg's concatenated)
-            concat_chunk = b""
-            for chunk in iter(lambda: stream_file_obj.read(4096), b""):
-                concat_chunk += chunk
-                a = concat_chunk.find(b"\xff\xd8")  # jpeg start code
-                b = concat_chunk.find(b"\xff\xd9")  # jpeg end code
-                if a != -1 and b != -1:
-                    jpeg_chunks.append((last_offset + a, b + 2))  # offset,len
-                    concat_chunk = concat_chunk[b + 2 :]  # reset bytes var to start at next jpg
-                    last_offset += b + 2
+        self.jpeg_paths = sorted(folder.glob("*.jpg"), key=lambda p: p.stem)
+        if not self.jpeg_paths:
+            raise RuntimeError(f"No JPEGs found in {folder}")
 
-            logger.info(f"found {len(jpeg_chunks)} images in virtualcamera video")
+        self._files = []
+        self._mmaps = []
 
-        return jpeg_chunks
+        for path in self.jpeg_paths:
+            f = open(path, "rb")  # cannot use "with" unless we keep f
+            mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
 
-    def images(self):
-        with open(Path(__file__).parent.joinpath("assets", "backend_virtualcamera", "video", "demovideo.mjpg").resolve(), "rb") as stream_file_obj:
-            with mmap.mmap(stream_file_obj.fileno(), length=0, access=mmap.ACCESS_READ) as stream_mmap_obj:
-                while True:
-                    slice_chunk = next(self.jpeg_chunks_iter)
-                    stream_mmap_obj.seek(slice_chunk[0])
+            self._files.append(f)
+            self._mmaps.append(mm)
 
-                    yield stream_mmap_obj.read(slice_chunk[1])
+        self.iter = cycle(self._mmaps)
+
+    def close(self):
+        for mm in self._mmaps:
+            mm.close()
+
+        for f in self._files:
+            f.close()
 
 
 class VirtualCameraBackend(AbstractBackend):
+    asset_file = Path(__file__).parent.joinpath("assets", "backend_virtualcamera", "video", "demovideo.mp4").resolve()
+    asset_nominal_fps = 25
+    asset_extracted_folder = Path.home() / ".photobooth-data" / "virtualcamera"
+
     def __init__(self, config: GroupCameraVirtual):
         # print(VirtualCameraBackend.__mro__)
         self._config: GroupCameraVirtual = config
@@ -57,21 +65,138 @@ class VirtualCameraBackend(AbstractBackend):
             idle_timeout=self._config.camera_standby_when_inactive_time if self._config.camera_standby_when_inactive else None,
         )
 
-        self._images_iterator = CyclicImageSource().images()
-        # self._enable_producer: bool = False
-        self._worker_thread: StoppableThread | None = None
+        with MetricsTimer(f"ensure unpacked demo video exists at {self.asset_extracted_folder}"):
+            self.ensure_extracted(self.asset_file, self.asset_extracted_folder)
+
+        self._folder_image_source = FolderImageSource(self.asset_extracted_folder)
+        self._images_iter = self.images()
 
     def start(self):
         super().start()
 
     def stop(self):
+
         super().stop()
+
+        self._folder_image_source.close()
+
+    def images1(self):
+        source_fps = self.asset_nominal_fps  # e.g. 25
+        target_fps = self._config.framerate  # e.g. 5
+
+        skip = max(1, int(source_fps / target_fps))
+        counter = 0
+
+        while not self._stop_event.is_set():
+            mm = next(self._folder_image_source.iter)
+
+            # emit only every Nth frame
+            if counter == 0:
+                self._frame_tick()
+                yield bytes(mm)
+                self._framerate.should_process_frame(target_fps)
+
+            # wrap counter to avoid unbounded growth
+            counter = (counter + 1) % skip
+
+    def images(self):
+        source_fps = self.asset_nominal_fps
+        target_fps = self._config.framerate
+
+        ratio = source_fps / target_fps  # / is float div
+        accu = 0.0
+
+        while not self._stop_event.is_set():
+            frame = next(self._folder_image_source.iter)
+            accu += 1.0
+            if accu >= ratio:
+                accu -= ratio
+
+                self._frame_tick()
+                yield bytes(frame)
+
+                time.sleep(1.0 / target_fps)
 
     def setup_resource(self):
         pass
 
     def teardown_resource(self):
         pass
+
+    @staticmethod
+    def file_hash(path: Path) -> str:
+        h = hashlib.sha256()
+        h.update(path.read_bytes())
+
+        return h.hexdigest()
+
+    @classmethod
+    def ensure_extracted(cls, asset_file: Path, asset_extracted_folder: Path):
+        done_file = asset_extracted_folder / "extraction.done"
+
+        # Compute hash of input video to detect changes
+        current_hash = cls.file_hash(asset_file)
+
+        # Case 1: No sentinel → extract
+        if not done_file.exists():
+            cls.extract_all(asset_file, asset_extracted_folder, current_hash)
+            return
+
+        # Case 2: Sentinel exists → verify hash
+        try:
+            stored_hash = done_file.read_text().strip()
+        except OSError:
+            stored_hash = ""
+        if stored_hash != current_hash:
+            # asset video changed → rebuild
+            for f in asset_extracted_folder.glob("*.jpg"):
+                f.unlink()
+
+            cls.extract_all(asset_file, asset_extracted_folder, current_hash)
+            return
+
+        # Case 3: Sentinel exists but directory empty → rebuild
+        if not any(asset_extracted_folder.glob("*.jpg")):
+            cls.extract_all(asset_file, asset_extracted_folder, current_hash)
+            return
+
+    @classmethod
+    def extract_all(cls, asset_file: Path, folder_out: Path, asset_hash: str):
+        folder_out.mkdir(parents=True, exist_ok=True)
+
+        cls.extract_jpegs_from_video(asset_file, folder_out)
+
+        # Write sentinel atomically
+        done_file = folder_out / "extraction.tmp"
+        done_file.write_text(asset_hash)
+        done_file.rename(folder_out / "extraction.done")
+
+    @classmethod
+    def extract_jpegs_from_video(cls, file_in: Path, folder_out: Path):
+
+        reformatter = VideoReformatter()
+
+        with av.open(file_in, mode="r") as input_device:
+            input_stream = input_device.streams.video[0]
+            input_stream.thread_type = av.codec.context.ThreadType.AUTO
+            input_stream.thread_count = 0
+
+            rW = input_stream.width
+            rH = input_stream.height
+
+            for i, frame in enumerate(input_device.decode(input_stream)):
+                resized_frame = reformatter.reformat(frame, width=rW, height=rH, interpolation=Interpolation.BILINEAR, format="yuv420p").to_ndarray()
+
+                with open(folder_out / f"{i:04d}.jpg", "wb") as fout:
+                    fout.write(
+                        encode_jpeg_yuv_planes(
+                            Y=resized_frame[:rH],
+                            U=resized_frame.reshape(rH * 3, rW // 2)[rH * 2 : rH * 2 + rH // 2],
+                            V=resized_frame.reshape(rH * 3, rW // 2)[rH * 2 + rH // 2 :],
+                            quality=85,
+                            fastdct=True,
+                        )
+                    )
 
     def run_service(self):
 
@@ -105,11 +230,11 @@ class VirtualCameraBackend(AbstractBackend):
 
             self._mode_machine.process_switchmode("video")
 
-            self._framerate.wait_until_fps(self._config.framerate)
-
             # "produce" next lores-frame
-            frame = next(self._images_iterator)
-            self._frame_tick()
+            try:
+                frame = next(self._images_iter)
+            except StopIteration:
+                return
 
             for dev_idx in range(self._config.emulate_multicam_capture_devices):
                 with self._lores_data[dev_idx].condition:
@@ -140,7 +265,11 @@ class VirtualCameraBackend(AbstractBackend):
                 with open(Path(__file__).parent.joinpath("assets", "backend_virtualcamera", "video", "hires.jpg").resolve(), "rb") as f_hires:
                     f.write(f_hires.read())
             else:
-                f.write(next(self._images_iterator))
+                try:
+                    frame = next(self._images_iter)
+                    f.write(frame)
+                except StopIteration as exc:
+                    raise RuntimeError("shutdown app during still capture") from exc
 
             return Path(f.name)
 
