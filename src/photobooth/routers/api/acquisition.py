@@ -20,28 +20,14 @@ router = APIRouter(prefix="/aquisition", tags=["aquisition"])
 
 @router.websocket("/stream")
 async def websocket_endpoint(websocket: WebSocket, index_device: int | None = None, index_subdevice: int = 0):
+    retries = 3
+
     if not appconfig.cameras.enable_livestream:
         raise HTTPException(status.HTTP_405_METHOD_NOT_ALLOWED, "preview not enabled")
 
     await websocket.accept()
 
-    retries = 3
-
     while True:
-        try:
-            msg = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
-
-        except WebSocketDisconnect:
-            logger.debug("client disconnected while waiting for the ready signal to send the next frame")
-            return  # return because disconnected already and below would handle disconnect otherwise again which fails for sure.
-        except TimeoutError:
-            # logger.debug("timed out while waiting for the ready signal to send the next frame, continue waiting...")
-            continue
-
-        if msg != "ready":
-            logger.warning(f"invalid message from client: {msg}")
-            continue
-
         jpeg_bytes = None
 
         for attempt in range(retries):
@@ -79,6 +65,26 @@ async def websocket_endpoint(websocket: WebSocket, index_device: int | None = No
             except Exception as exc:
                 logger.info(f"error sending data: {exc}")
                 break
+
+    while True:
+        try:
+            msg = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
+            if msg != "ready":
+                logger.warning(f"invalid message from client: {msg}")
+                continue
+
+            break
+        except WebSocketDisconnect:
+            logger.debug("client disconnected while waiting for the ready signal to send the next frame")
+            return  # return because disconnected already and below would handle disconnect otherwise again which fails for sure.
+        except BackendNotRunning:
+            logger.info("backend stopped, closing stream")
+
+            await websocket.close(code=1001, reason="backend stopped")
+            return  # stop
+        except TimeoutError:
+            logger.debug("timed out while waiting for the ready signal from the client to send the next frame, continue waiting...")
+            continue
 
     # when while ends, close the connection server side so client can retry connecting)
     try:
