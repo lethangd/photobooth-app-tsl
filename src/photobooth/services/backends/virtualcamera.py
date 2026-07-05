@@ -2,9 +2,11 @@ import hashlib
 import logging
 import mmap
 import time
+from collections.abc import Generator
 from itertools import cycle
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from typing import Any
 
 import av
 import av.codec
@@ -65,11 +67,8 @@ class VirtualCameraBackend(AbstractBackend):
             idle_timeout=self._config.camera_standby_when_inactive_time if self._config.camera_standby_when_inactive else None,
         )
 
-        with MetricsTimer(f"ensure unpacked demo video exists at {self.asset_extracted_folder}"):
-            self.ensure_extracted(self.asset_file, self.asset_extracted_folder)
-
-        self._folder_image_source = FolderImageSource(self.asset_extracted_folder)
-        self._images_iter = self.images()
+        self._folder_image_source: FolderImageSource | None = None
+        self._images_iter: Generator[bytes, Any, None] | None = None
 
     def start(self):
         super().start()
@@ -78,28 +77,8 @@ class VirtualCameraBackend(AbstractBackend):
 
         super().stop()
 
-        self._folder_image_source.close()
-
-    def images1(self):
-        source_fps = self.asset_nominal_fps  # e.g. 25
-        target_fps = self._config.framerate  # e.g. 5
-
-        skip = max(1, int(source_fps / target_fps))
-        counter = 0
-
-        while not self._stop_event.is_set():
-            mm = next(self._folder_image_source.iter)
-
-            # emit only every Nth frame
-            if counter == 0:
-                self._frame_tick()
-                yield bytes(mm)
-                self._framerate.should_process_frame(target_fps)
-
-            # wrap counter to avoid unbounded growth
-            counter = (counter + 1) % skip
-
     def images(self):
+        assert self._folder_image_source
         source_fps = self.asset_nominal_fps
         target_fps = self._config.framerate
 
@@ -118,10 +97,15 @@ class VirtualCameraBackend(AbstractBackend):
                 time.sleep(1.0 / target_fps)
 
     def setup_resource(self):
-        pass
+        with MetricsTimer(f"ensure unpacked demo video exists at {self.asset_extracted_folder}"):
+            self.ensure_extracted(self.asset_file, self.asset_extracted_folder)
+
+        self._folder_image_source = FolderImageSource(self.asset_extracted_folder)
+        self._images_iter = self.images()
 
     def teardown_resource(self):
-        pass
+        if self._folder_image_source:
+            self._folder_image_source.close()
 
     @staticmethod
     def file_hash(path: Path) -> str:
@@ -199,7 +183,7 @@ class VirtualCameraBackend(AbstractBackend):
                     )
 
     def run_service(self):
-
+        assert self._images_iter
         while not self._stop_event.is_set():
             with self._hires_lock:
                 req = self._hires_queue.popleft() if self._hires_queue else None
@@ -253,6 +237,8 @@ class VirtualCameraBackend(AbstractBackend):
 
     def _produce_still(self, index_subdevice: int = 0) -> Path:
         """for other threads to receive a hq JPEG image"""
+
+        assert self._images_iter
 
         with NamedTemporaryFile(
             mode="wb",
