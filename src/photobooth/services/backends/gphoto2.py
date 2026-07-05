@@ -323,10 +323,10 @@ class Gphoto2Backend(AbstractBackend):
                         logger.critical(f"aborting capturing frame, camera disconnected? retry to connect {exc}")
                         try:
                             self._camera.exit()
-                        except Exception as exc:
+                        except Exception:
                             pass  # fail in silence, because things got already wrong. this one is just to try to cleanup, might help or not...
 
                         # stop device requested by leaving worker loop, so supvervisor can restart
-                        break
+                        raise RuntimeError(f"Error communicating with the camera: {exc}") from exc
                 else:
                     preview_failcounter = 0
