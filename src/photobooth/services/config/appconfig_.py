@@ -18,6 +18,7 @@ from .groups.hardwareinputoutput import GroupHardwareInputOutput
 from .groups.mediaprocessing import GroupMediaprocessing
 from .groups.misc import GroupMisc
 from .groups.share import GroupShare
+from .groups.shareondemand import GroupShareOnDemand
 from .groups.uisettings import GroupUiSettings
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ class AppConfig(BaseConfig):
     common: GroupCommon = GroupCommon()
     actions: GroupActions = GroupActions()
     share: GroupShare = GroupShare()
+    shareondemand: GroupShareOnDemand = GroupShareOnDemand()
     mediaprocessing: GroupMediaprocessing = GroupMediaprocessing()
     uisettings: GroupUiSettings = GroupUiSettings()
     cameras: GroupCameras = GroupCameras()

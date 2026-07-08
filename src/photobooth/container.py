@@ -11,6 +11,7 @@ from .services.logging import LoggingService
 from .services.pluginmanager import PluginManagerService
 from .services.processing import ProcessingService
 from .services.share import ShareService
+from .services.shareondemand import ShareOnDemandService
 from .services.system import SystemService
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ class Container:
     processing_service = ProcessingService(acquisition_service, mediacollection_service, information_service)
     system_service = SystemService()
     share_service = ShareService()
+    share_ondemand_service = ShareOnDemandService(mediacollection_service)
     gpio_service = GpioService(processing_service, share_service, mediacollection_service)
     config_service = ConfigurationService(pluginmanager_service)
 
