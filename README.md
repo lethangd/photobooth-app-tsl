@@ -3,7 +3,7 @@
 Welcome to your brand-new open-source photobooth-app! Written in Python 🐍, coming along with a modern Vue3 frontend.
 
 [![PyPI](https://img.shields.io/pypi/v/photobooth-app)](https://pypi.org/project/photobooth-app/)
-[![ruff](https://github.com/photobooth-app/photobooth-app/actions/workflows/ruff.yml/badge.svg)](https://github.com/photobooth-app/photobooth-app/actions/workflows/ruff.yml)
+[![lint](https://github.com/photobooth-app/photobooth-app/actions/workflows/linter.yml/badge.svg)](https://github.com/photobooth-app/photobooth-app/actions/workflows/linter.yml)
 [![pytest](https://github.com/photobooth-app/photobooth-app/actions/workflows/pytests.yml/badge.svg)](https://github.com/photobooth-app/photobooth-app/actions/workflows/pytests.yml)
 [![codecov](https://codecov.io/gh/photobooth-app/photobooth-app/branch/main/graph/badge.svg?token=SBB5DGX17V)](https://codecov.io/gh/photobooth-app/photobooth-app)
 [![crowdin](https://badges.crowdin.net/photobooth-app/localized.svg)](https://crowdin.com/project/photobooth-app)
