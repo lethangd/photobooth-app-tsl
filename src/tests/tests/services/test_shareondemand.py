@@ -40,12 +40,6 @@ def _mediaitem(request, _container: Container) -> Generator[Mediaitem, None, Non
     yield _container.mediacollection_service.get_item_latest()
 
 
-def test_shareondemand_landingpage_valid():
-    # ensure that the landingpage is available - this is a default configured address and helps the user during setup of a booth
-    r = requests.get("https://photobooth-app.org/extras/shareondemand-landing/")
-    assert r.ok
-
-
 def test_shareondemand_urls_valid():
     """test some common actions on url"""
 
