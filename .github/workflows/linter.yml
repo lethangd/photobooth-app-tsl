@@ -1,4 +1,4 @@
-name: linter static type checking
+name: lint
 permissions:
   contents: read
   
