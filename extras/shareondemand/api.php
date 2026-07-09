@@ -2,9 +2,10 @@
 declare(strict_types=1);
 
 namespace Photobooth;
-
 use RuntimeException;
 use function strlen, count, intval; // use global functions
+
+const API_KEY = "changedefault!";   // <-- user changes this
 
 final class ShareService
 {
@@ -252,7 +253,7 @@ final class ShareService
 }
 
 $service = new ShareService(
-    apiKey: "changedefault!",
+    apiKey: API_KEY,
     workDir: __DIR__ . "/uploads",
     jobDir: __DIR__ . "/jobs"
 );
