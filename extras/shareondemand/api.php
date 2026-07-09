@@ -252,7 +252,7 @@ final class ShareService
 }
 
 $service = new ShareService(
-    apiKey: "thisIsSafe!",
+    apiKey: "changedefault!",
     workDir: __DIR__ . "/uploads",
     jobDir: __DIR__ . "/jobs"
 );
