@@ -109,7 +109,7 @@ class AcquisitionService(BaseService):
         pluggy_pm.hook.acq_thrill()
         pluggy_pm.hook.acq_thrill_multicam()
 
-    def wait_for_lores_image(self, index_device: int | None = 0, index_subdevice: int = 0):
+    def wait_for_lores_image(self, index_device: int | None = None, index_subdevice: int = 0):
 
         if not self.is_running():
             raise BackendNotRunning
@@ -118,7 +118,7 @@ class AcquisitionService(BaseService):
 
         return backend.wait_for_lores_image(index_subdevice=index_subdevice)
 
-    def wait_for_still_file(self, index_device: int | None = 0, index_subdevice: int = 0):
+    def wait_for_still_file(self, index_device: int | None = None, index_subdevice: int = 0):
         backend = self._stills_backend if index_device is None else self._backends[index_device]
 
         pluggy_pm.hook.acq_before_shot()
@@ -132,7 +132,7 @@ class AcquisitionService(BaseService):
             # ensure even if failed, the wled is set to standby again
             pluggy_pm.hook.acq_after_shot()
 
-    def wait_for_multicam_files(self, index_device: int | None = 0):
+    def wait_for_multicam_files(self, index_device: int | None = None):
         backend = self._multicam_backend if index_device is None else self._backends[index_device]
 
         pluggy_pm.hook.acq_before_shot()
