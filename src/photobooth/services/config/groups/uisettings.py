@@ -147,3 +147,7 @@ class GroupUiSettings(BaseModel):
         default=True,
         description="Show the share/print buttons in gallery.",
     )
+    itempresenter_show_trigger_last_action_again: bool = Field(
+        default=True,
+        description="Show a button to directly trigger the last action again in the presenter after a capture has been taken.",
+    )
