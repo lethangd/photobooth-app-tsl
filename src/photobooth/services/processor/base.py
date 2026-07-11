@@ -213,7 +213,7 @@ class JobModelBase(ABC, Generic[T]):
         self._countdown_timer.wait_countdown_finished()
 
     def complete_phase1image(self, capture_to_process: Path, show_in_gallery: bool, pipeline_config: SingleImageProcessing) -> Mediaitem:
-        original_filenamepath = Path(filename_str_time()).with_suffix(capture_to_process.suffix)
+        original_filenamepath = Path(f"{filename_str_time()}{'' if show_in_gallery else '_hidden'}").with_suffix(capture_to_process.suffix)
 
         # very first, move the capture_to_process to originals. if anything later fails, at least we got the file in safe place.
         captured_original = capture_to_process.rename(Path(PATH_CAMERA_ORIGINAL, original_filenamepath))
