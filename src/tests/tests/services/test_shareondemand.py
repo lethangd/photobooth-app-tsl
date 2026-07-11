@@ -11,12 +11,12 @@ from photobooth.database.models import Mediaitem
 
 logger = logging.getLogger(name=None)
 
-r = requests.get(appconfig.shareondemand.baseurl.rstrip("/") + "/api.php", params={"action": "version"}, allow_redirects=False)
 is_valid_service = False
 try:
+    r = requests.get(appconfig.shareondemand.baseurl.rstrip("/") + "/api.php", params={"action": "version"}, allow_redirects=False)
     is_valid_service = "type" in list(r.json().keys())
-except Exception:
-    is_valid_service = False
+except Exception as exc:
+    logger.info(exc)
 
 if not is_valid_service:
     logger.warning(f"no webservice found, skipping tests {appconfig.shareondemand.baseurl}")

@@ -1,5 +1,5 @@
 """
-https://photobooth-app.org/setup/shareservice/
+https://photobooth-app.org/setup/configuration/qrshareservice/
 """
 
 import json
