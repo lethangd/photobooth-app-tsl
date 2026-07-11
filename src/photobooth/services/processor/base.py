@@ -12,9 +12,10 @@ from statemachine import Event
 from ... import PATH_CAMERA_ORIGINAL, PATH_PROCESSED
 from ...appconfig import appconfig
 from ...database.models import Mediaitem, MediaitemTypes
+from ...database.types import DimensionTypes
 from ...utils.countdowntimer import CountdownTimer
 from ...utils.helper import filename_str_time
-from ...utils.media_resizer import resize
+from ..collection import Cache
 from ..config.groups.actions import (
     BaseConfigurationSet,
     MulticameraJobControl,
@@ -60,6 +61,7 @@ class JobModelBase(ABC, Generic[T]):
 
         self._configuration_set: T = configuration_set
         self._acquisition_service: AcquisitionService = acquisition_service
+        self._cache = Cache()
 
         self._job_identifier: UUID = uuid4()
 
@@ -228,10 +230,8 @@ class JobModelBase(ABC, Generic[T]):
             show_in_gallery=show_in_gallery,
         )
 
-        # TODO: get some clever way to scale AND cache?
-        # TODO: check if cache-generation checks for size and if already same as target, don't scale, just copy, clever trick done.
-        resize(captured_original, mediaitem.processed, appconfig.mediaprocessing.full_still_length)
-        process_phase1images(mediaitem.processed, mediaitem)
+        cacheditem = self._cache.get_cached_repr(mediaitem, DimensionTypes.full, processed=False)
+        process_phase1images(cacheditem.filepath, mediaitem)
 
         assert mediaitem.processed.is_file()
         assert mediaitem.captured_original and mediaitem.captured_original.is_file()

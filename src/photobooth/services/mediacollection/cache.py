@@ -37,11 +37,9 @@ class Cache:
                 cacheditem_exists = self._db_check_cache_valid(item.id, dimension, processed)
 
                 if cacheditem_exists:
-                    print("HIT")
                     return cacheditem_exists
 
                 else:
-                    print("MISS")
                     id = uuid4()
                     file_in = item.processed if processed else item.captured_original
                     file_out_stem = f"{id.hex}_{'proc' if processed else 'unproc'}_{dimension.name}"
