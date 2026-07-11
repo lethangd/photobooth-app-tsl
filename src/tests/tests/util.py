@@ -11,7 +11,7 @@ import numpy as np
 import piexif
 from PIL import Image, ImageChops
 
-from photobooth import PATH_CAMERA_ORIGINAL, PATH_PROCESSED, PATH_UNPROCESSED
+from photobooth import PATH_CAMERA_ORIGINAL, PATH_PROCESSED
 from photobooth.database.models import Mediaitem
 from photobooth.database.types import MediaitemTypes
 from photobooth.services.backends.abstractbackend import AbstractBackend
@@ -112,13 +112,11 @@ def dummy_mediaitem():
 
     img.save(img_path_original)
     shutil.copy(img_path_original, PATH_PROCESSED)
-    shutil.copy(img_path_original, PATH_UNPROCESSED)
 
     new_item_instance = Mediaitem(
         job_identifier=uuid4(),
         media_type=MediaitemTypes.image,
         captured_original=img_path_original,
-        unprocessed=Path(PATH_UNPROCESSED, img_path_original.name),
         processed=Path(PATH_PROCESSED, img_path_original.name),
         pipeline_config={},
         show_in_gallery=True,

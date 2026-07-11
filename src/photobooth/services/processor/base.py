@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 
 from statemachine import Event
 
-from ... import PATH_CAMERA_ORIGINAL, PATH_PROCESSED, PATH_UNPROCESSED
+from ... import PATH_CAMERA_ORIGINAL, PATH_PROCESSED
 from ...appconfig import appconfig
 from ...database.models import Mediaitem, MediaitemTypes
 from ...utils.countdowntimer import CountdownTimer
@@ -222,7 +222,6 @@ class JobModelBase(ABC, Generic[T]):
             id=uuid4(),
             job_identifier=self._job_identifier,
             media_type=MediaitemTypes.image,
-            unprocessed=Path(PATH_UNPROCESSED, original_filenamepath),
             processed=Path(PATH_PROCESSED, original_filenamepath),
             captured_original=captured_original,
             pipeline_config=pipeline_config.model_dump(mode="json"),
@@ -231,10 +230,9 @@ class JobModelBase(ABC, Generic[T]):
 
         # TODO: get some clever way to scale AND cache?
         # TODO: check if cache-generation checks for size and if already same as target, don't scale, just copy, clever trick done.
-        resize(captured_original, mediaitem.unprocessed, appconfig.mediaprocessing.full_still_length)
-        process_phase1images(mediaitem.unprocessed, mediaitem)
+        resize(captured_original, mediaitem.processed, appconfig.mediaprocessing.full_still_length)
+        process_phase1images(mediaitem.processed, mediaitem)
 
-        assert mediaitem.unprocessed.is_file()
         assert mediaitem.processed.is_file()
         assert mediaitem.captured_original and mediaitem.captured_original.is_file()
 

@@ -87,7 +87,7 @@ def process_phase1images(file_in: Path, mediaitem: Mediaitem):
     manipulated_image = process_image_inner(file_in, SingleImageProcessing(**mediaitem.pipeline_config), preview=False)
 
     ## final: save full result and create scaled versions
-    # complete processed version (unprocessed and processed are different here)
+    # complete processed version
     with MetricsTimer(f"{process_phase1images.__name__} {encode.__name__}"):
         encode([manipulated_image], mediaitem.processed)
 
@@ -111,11 +111,9 @@ def process_video(video_in: Path, mediaitem: Mediaitem):
 
     # copy final video
     if context.video_processed:  # in case a video was processed, move it
-        shutil.move(context.video_processed, mediaitem.unprocessed)
+        shutil.move(context.video_processed, mediaitem.processed)
     else:  # otherwise create a copy because we want to keep the original
-        shutil.copy2(video_in, mediaitem.unprocessed)
-    # complete processed version (unprocessed and processed are same here for this one)
-    shutil.copy2(mediaitem.unprocessed, mediaitem.processed)
+        shutil.copy2(video_in, mediaitem.processed)
 
 
 def process_and_generate_collage(files_in: list[Path], mediaitem: Mediaitem):
@@ -167,9 +165,7 @@ def process_and_generate_collage(files_in: list[Path], mediaitem: Mediaitem):
     ## create mediaitem
     canvas = canvas.convert("RGB") if canvas.mode in ("RGBA", "P") else canvas
     with MetricsTimer(f"{process_and_generate_collage.__name__} {encode.__name__}"):
-        encode([canvas], mediaitem.unprocessed)
-    # complete processed version (unprocessed and processed are same here for this one)
-    shutil.copy2(mediaitem.unprocessed, mediaitem.processed)
+        encode([canvas], mediaitem.processed)
 
 
 def process_and_generate_animation(files_in: list[Path], mediaitem: Mediaitem):
@@ -194,9 +190,7 @@ def process_and_generate_animation(files_in: list[Path], mediaitem: Mediaitem):
 
     ## create mediaitem
     with MetricsTimer(f"{process_and_generate_animation.__name__} {encode.__name__}"):
-        encode(context.images, mediaitem.unprocessed, durations=[definition.duration for definition in config.merge_definition])
-    # complete processed version (unprocessed and processed are same here for this one)
-    shutil.copy2(mediaitem.unprocessed, mediaitem.processed)
+        encode(context.images, mediaitem.processed, durations=[definition.duration for definition in config.merge_definition])
 
 
 def process_wigglegram_inner(files_in: list[Path], config: MulticameraProcessing, preview: bool) -> list[Image.Image]:
@@ -227,8 +221,6 @@ def process_and_generate_wigglegram(files_in: list[Path], mediaitem: Mediaitem):
     sequence_images = manipulated_image
     sequence_images = sequence_images + list(reversed(sequence_images[1 : len(sequence_images) - 1]))  # add reversed list except first+last item
     with MetricsTimer(f"{process_and_generate_wigglegram.__name__} {encode.__name__}"):
-        encode(sequence_images, mediaitem.unprocessed, durations=config.duration)
-    # unprocessed and processed are same here for now
-    shutil.copy2(mediaitem.unprocessed, mediaitem.processed)
+        encode(sequence_images, mediaitem.processed, durations=config.duration)
 
     return mediaitem

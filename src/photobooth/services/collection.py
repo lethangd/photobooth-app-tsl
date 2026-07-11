@@ -9,7 +9,7 @@ from threading import Lock
 from typing import cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import CursorResult, delete, func, select
+from sqlalchemy import CursorResult, and_, delete, func, or_, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 
@@ -66,9 +66,7 @@ class Database:
     def list_items(self, offset: int = 0, limit: int = 500) -> list[Mediaitem]:
         with Session(engine) as session:
             galleryitems = list(
-                session.scalars(
-                    select(Mediaitem).where(Mediaitem.show_in_gallery).order_by(Mediaitem.created_at.desc()).offset(offset).limit(limit)
-                ).all()
+                session.scalars(select(Mediaitem).where(Mediaitem.show_in_gallery).order_by(Mediaitem.rowid.desc()).offset(offset).limit(limit)).all()
             )
 
             return galleryitems
@@ -89,24 +87,22 @@ class Files:
         pass
 
     def check_representing_files_raise(self, item: Mediaitem):
-        if not item.unprocessed.is_file():
-            raise FileNotFoundError(f"failed to process {item.id} because representing unprocessed file does not exist: {item.unprocessed}")
         if not item.processed.is_file():
             raise FileNotFoundError(f"failed to process {item.id} because representing processed file does not exist: {item.processed}")
 
     def delete_item(self, mediaitem: Mediaitem, delete_to_recycle_dir: bool = True):
-        """delete single items processed and unprocessed"""
+        """delete single item"""
 
         logger.info(f"request delete files of {mediaitem}")
 
         if mediaitem.captured_original:
             if delete_to_recycle_dir:
                 logger.info(f"moving {mediaitem} to recycle directory")
-                mediaitem.captured_original.rename(Path(RECYCLE_PATH, mediaitem.unprocessed.name))
+                mediaitem.captured_original.rename(Path(RECYCLE_PATH, mediaitem.captured_original.name))
             else:
                 mediaitem.captured_original.unlink(missing_ok=True)
 
-        for file in [mediaitem.processed, mediaitem.unprocessed]:  # could be extended to other processed versions if any again...
+        for file in [mediaitem.processed]:  # could be extended to other processed versions if any again...
             file.unlink(missing_ok=True)
 
         logger.info(f"deleted files of {mediaitem}")
@@ -114,13 +110,17 @@ class Files:
     def clear_all(self):
         """delete all images, inclusive thumbnails, ..."""
         try:
-            for file in Path(f"{PATH_UNPROCESSED}").glob("*.*"):
+            try:
+                # for now in v9 removing deprecated unprocessed is kept
+                # so clear all removes the not-longer-used unprocessed files also.
+                shutil.rmtree(PATH_UNPROCESSED)
+            except Exception:
+                pass
+            for file in Path(PATH_PROCESSED).glob("*.*"):
                 file.unlink()
-            for file in Path(f"{PATH_PROCESSED}").glob("*.*"):
+            for file in Path(PATH_CAMERA_ORIGINAL).glob("*.*"):
                 file.unlink()
-            for file in Path(f"{PATH_CAMERA_ORIGINAL}").glob("*.*"):
-                file.unlink()
-            for item in Path(f"{TMP_PATH}").glob("*"):
+            for item in Path(TMP_PATH).glob("*"):
                 if item.is_file() or item.is_symlink():
                     item.unlink()
                 elif item.is_dir():
@@ -158,17 +158,25 @@ class Cache:
 
                 else:
                     id = uuid4()
+                    file_in = item.processed if processed else item.captured_original
+                    file_out_stem = f"{id.hex}_{'proc' if processed else 'unproc'}_{dimension.name}"
+
+                    # this should not happen, because there is no way to apply filters or similar to a mediaitem that has no original
+                    # for example collages have no captured original but only processed full because it is generated from several originals.
+                    assert file_in is not None, "no captured_original but requested to resize"
+
                     cacheditem_new = Cacheditem(
                         id=id,
                         mediaitem_id=item.id,
                         dimension=dimension,
                         processed=processed,
-                        filepath=Path(CACHE_PATH, id.hex).with_suffix(item.unprocessed.suffix),
+                        revision=item.revision,
+                        filepath=Path(CACHE_PATH, file_out_stem).with_suffix(item.processed.suffix),
                     )
 
                     with MetricsTimer(f"generate resized '{dimension.value}' for {cacheditem_new.filepath}"):
                         resize(
-                            filepath_in=item.processed if processed else item.unprocessed,
+                            filepath_in=file_in,
                             filepath_out=cacheditem_new.filepath,
                             scaled_min_length=dimension_pixel,
                         )
@@ -181,14 +189,21 @@ class Cache:
 
     def _db_check_cache_valid(self, mediaitem_id: UUID, dimension: DimensionTypes, processed: bool = True):
         with Session(engine) as session:
-            results = session.scalars(
+            stmt = (
                 select(Cacheditem)
                 .join(Mediaitem)
-                .where(Cacheditem.mediaitem_id == mediaitem_id, Cacheditem.dimension == dimension, Cacheditem.processed == processed)
-                .where(Mediaitem.updated_at < Cacheditem.created_at)  # cached item created later than last updated mediaitem
+                .where(
+                    Cacheditem.mediaitem_id == mediaitem_id,
+                    Cacheditem.dimension == dimension,
+                    Cacheditem.processed == processed,
+                    or_(  # for cache we need to check the revision only in processed variant because the original will always remain the same
+                        Cacheditem.processed.is_(False),  # if == False, next line is skipped and revision is not relevant for cache existence
+                        Mediaitem.revision == Cacheditem.revision,
+                    ),
+                )
             )
 
-            cacheditem_exists = results.one_or_none()  # if none, there is no item yet cached and cached version needs to be created.
+            cacheditem_exists = session.scalars(stmt).one_or_none()  # if none, there is no item yet cached and cached version needs to be created.
 
             # check files also, otherwise delete the item:
             if cacheditem_exists and not cacheditem_exists.filepath.exists():
@@ -204,7 +219,16 @@ class Cache:
         outdated_filepaths: list[Path] = []
 
         with Session(engine) as session:
-            statement = select(Cacheditem).join(Mediaitem).where(Mediaitem.updated_at > Cacheditem.created_at)
+            statement = (
+                select(Cacheditem)
+                .join(Mediaitem)
+                .where(
+                    and_(  # items can be outdated only if processed is true (unprocessed never change) and revision is different.
+                        Cacheditem.processed.is_(True),
+                        Mediaitem.revision != Cacheditem.revision,
+                    )
+                )
+            )
             results = session.scalars(statement)
             outdated_items = results.all()
 
@@ -276,7 +300,7 @@ class MediacollectionService(BaseService):
         self.db.add_item(item)
 
         # if shown in gallery negative priority_modifier for higher prio.
-        pluggy_pm.hook.collection_files_added(files=[item.processed, item.unprocessed], priority_modifier=-1 if item.show_in_gallery else +1)
+        pluggy_pm.hook.collection_files_added(files=[item.processed], priority_modifier=-1 if item.show_in_gallery else +1)
 
         if item.captured_original:
             pluggy_pm.hook.collection_files_added(files=[item.captured_original], priority_modifier=+2)
@@ -301,7 +325,7 @@ class MediacollectionService(BaseService):
         self.db.delete_item(item)
         self.fs.delete_item(item, appconfig.common.users_delete_to_recycle_dir)
 
-        pluggy_pm.hook.collection_files_deleted(files=[item.processed, item.unprocessed])
+        pluggy_pm.hook.collection_files_deleted(files=[item.processed])
 
         # # and remove from client db collection so gallery is up to date.
         # event is even sent if not show_in_gallery, client needs to sort things out

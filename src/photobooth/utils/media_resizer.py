@@ -50,7 +50,6 @@ def resize_jpeg_simplejpeg(filepath_in: Path, filepath_out: Path, scaled_min_len
     target_width = int(int(width) * scaling_factor)
 
     if scaling_factor > 1:
-        logger.warning("scale factor bigger than 1 - consider optimize config, usually images shall shrink, resizing skipped")
         buffer_out = jpeg_bytes_in
     else:
         decoded_img = decode_jpeg(jpeg_bytes_in, min_height=target_height, min_width=target_width, fastdct=True)

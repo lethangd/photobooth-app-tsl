@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from statemachine import Event
 
-from ... import PATH_CAMERA_ORIGINAL, PATH_PROCESSED, PATH_UNPROCESSED
+from ... import PATH_CAMERA_ORIGINAL, PATH_PROCESSED
 from ...database.models import Mediaitem, MediaitemTypes
 from ...utils.helper import filename_str_time
 from ..acquisition import AcquisitionService
@@ -69,7 +69,6 @@ class JobModelVideo(JobModelBase[VideoConfigurationSet]):
             id=uuid4(),
             job_identifier=self._job_identifier,
             media_type=self._media_type,
-            unprocessed=Path(PATH_UNPROCESSED, original_filenamepath),
             processed=Path(PATH_PROCESSED, original_filenamepath),
             captured_original=captured_original,
             pipeline_config=self._configuration_set.processing.model_dump(mode="json"),
@@ -78,7 +77,6 @@ class JobModelVideo(JobModelBase[VideoConfigurationSet]):
         # apply video pipeline:
         process_video(captured_original, mediaitem)
 
-        assert mediaitem.unprocessed.is_file()
         assert mediaitem.processed.is_file()
         assert mediaitem.captured_original and mediaitem.captured_original.is_file()
 

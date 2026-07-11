@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import UUID, Boolean, DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import UUID, Boolean, DateTime, Enum, ForeignKey, Integer, String, event
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -38,16 +38,13 @@ class Mediaitem(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), default=uuid.uuid4, primary_key=True)
     media_type: Mapped[MediaitemTypes] = mapped_column(Enum(MediaitemTypes))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
-    # Notice: Currently the resolution for datetime seems to be only seconds. That means several captures in 1 second cannot be sorted properly
-    # later using order_by and datetime-columns. To fix that, we added the systems rowid and use it to sort to find latest items.
+
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # used for cache invalidation/browser cache busting
 
     job_identifier: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), default=None)
 
     # the original as captured from camera. Defaults to false because phase2 items (collage, animations) to not have a captured original
     captured_original: Mapped[Path | None] = mapped_column(PathType, default=None)
-    # the unprocessed full-dimension item.
-    unprocessed: Mapped[Path] = mapped_column(PathType)
     # processed full-dimension, filter pipeline applied
     processed: Mapped[Path] = mapped_column(PathType)
 
@@ -55,7 +52,12 @@ class Mediaitem(Base):
     show_in_gallery: Mapped[bool] = mapped_column(Boolean, default=True)
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__}> ({self.unprocessed})"
+        return f"<{self.__class__.__name__}> ({self.processed.name})"
+
+
+@event.listens_for(Mediaitem, "before_update")
+def increment_revision(mapper, connection, target):
+    target.revision = (target.revision or 0) + 1
 
 
 class Cacheditem(Base):
@@ -68,7 +70,9 @@ class Cacheditem(Base):
     dimension: Mapped[DimensionTypes] = mapped_column(Enum(DimensionTypes), index=True)
     processed: Mapped[bool] = mapped_column(Boolean, index=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # revision is used to detect if the original mediaitem was updated (new filter applied, or something)
+    # originally (before v9) we used updated_at/created_at but it has only 1s accuracy and can cause problems on fast systems
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     filepath: Mapped[Path] = mapped_column(PathType)
 
