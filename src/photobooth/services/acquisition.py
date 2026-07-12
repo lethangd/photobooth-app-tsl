@@ -126,7 +126,6 @@ class AcquisitionService(BaseService):
         try:
             return backend.wait_for_still_file(index_subdevice=index_subdevice)
         except Exception as exc:
-            # self._stills_backend.recover()  # TODO: verify
             raise exc
         finally:
             # ensure even if failed, the wled is set to standby again
@@ -141,7 +140,6 @@ class AcquisitionService(BaseService):
         try:
             return backend.wait_for_multicam_files()
         except Exception as exc:
-            # self._multicam_backend.recover()  # TODO: verify.
             raise exc
         finally:
             # ensure even if failed, the wled is set to standby again
