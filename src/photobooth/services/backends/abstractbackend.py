@@ -44,7 +44,7 @@ class StillRequest:
     id: uuid.UUID
     subdevice_index: int
     result_file: Path | None = None
-    error: Exception | None = None
+    # error: Exception | None = None
     condition: threading.Condition = threading.Condition()
 
 
@@ -52,7 +52,7 @@ class StillRequest:
 class MulticamRequest:
     id: uuid.UUID
     result_files: list[Path] | None = None
-    error: Exception | None = None
+    # error: Exception | None = None
     condition: threading.Condition = threading.Condition()
 
 
@@ -334,8 +334,6 @@ class AbstractBackend(ResilientService, ABC):
 
             if not ok:
                 raise TimeoutError("timeout waiting for hires frame")
-            if req.error:
-                raise req.error
 
             filepaths = req.result_files
             assert filepaths
@@ -358,8 +356,6 @@ class AbstractBackend(ResilientService, ABC):
 
             if not ok:
                 raise TimeoutError("timeout waiting for hires frame")
-            if req.error:
-                raise req.error
 
             filepath = req.result_file
             assert filepath
@@ -376,8 +372,6 @@ class AbstractBackend(ResilientService, ABC):
         self._mode_machine.request_video()
 
         with self._lores_data[index_subdevice].condition:
-            # TODO: while "versuchen solange bis wir ein bild haben, jedoch im video modus abbruch nach 2 sec, sonst solange bis backend.stopped"
-            # self._mode_machine.active_mode!='video':
             if not self._lores_data[index_subdevice].condition.wait(timeout=2.0):
                 raise TimeoutError("timeout receiving frames")
 
