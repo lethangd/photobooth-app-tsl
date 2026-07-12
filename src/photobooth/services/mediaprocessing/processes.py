@@ -54,10 +54,10 @@ def process_image_inner(file_in: Path, config: SingleImageProcessing, preview: b
     if config.image_filter:
         steps.append(PluginFilterStep(config.image_filter))
 
-    if config.img_frame_enable:
-        if not config.img_frame_file:
+    if config.img_frame.enable:
+        if not config.img_frame.image:
             raise ValueError("image frame enabled, but no file given")
-        steps.append(ImageFrameStep(config.img_frame_file))
+        steps.append(ImageFrameStep(config.img_frame.image))
 
     if config.texts_enable:
         steps.append(TextStep(config.texts))
