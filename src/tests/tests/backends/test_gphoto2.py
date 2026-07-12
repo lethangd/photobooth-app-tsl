@@ -1,6 +1,7 @@
 import io
 import logging
 import os
+import sys
 import time
 
 import pytest
@@ -18,6 +19,9 @@ from photobooth.utils.enumerate import dslr_gphoto2 as enumerate_dslr_gphoto2
 from ..util import block_until_device_is_running
 
 logger = logging.getLogger(name=None)
+
+if not sys.platform == "linux":
+    pytest.skip("platform not linux, test of backend skipped", allow_module_level=True)
 
 
 @pytest.fixture(autouse=True)
