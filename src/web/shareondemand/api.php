@@ -26,14 +26,6 @@ final class ShareService
         private int $maxSize = 25 * 2 ** 20, //25 Mb
         private int $timeout = 15   // s
     ) {
-        if (!is_dir($workDir))
-            if (!mkdir($workDir, 0775, true))
-                throw new RuntimeException("The workDir $workDir is not writeable.");
-        if (!is_dir($jobDir))
-            if (!mkdir($jobDir, 0775, true))
-                throw new RuntimeException("The jobDir $jobDir is not writeable.");
-
-
         ini_set('display_startup_errors', 0);
         ini_set('display_errors', 0);
         ini_set('log_errors', 1);
@@ -49,10 +41,10 @@ final class ShareService
     private function validateApiKey(string $key): void
     {
         if (strlen($this->apiKey) < 8) {
-            throw new RuntimeException('The API key is empty or too short! Configure the key in the php script and set it in the photobooth-app config.');
+            throw new RuntimeException('The API key is empty or too short! The key needs to be at least 8 characters.');
         }
         if ($this->apiKey == "changedefault!") {
-            throw new RuntimeException('The API key is the default value in the PHP script! Change the API key in the PHP script and the photobooth-app config.');
+            throw new RuntimeException('The API key is the default value! You need to set a custom api key.');
         }
         if ($key !== $this->apiKey) {
             throw new RuntimeException("Invalid API key!");
@@ -226,6 +218,16 @@ final class ShareService
             "type" => "version"
         ]);
     }
+
+    public function setupFolders():void {
+        if (!is_dir($this->workDir))
+            if (!mkdir($this->workDir, 0775, true))
+                throw new RuntimeException("The workDir $this->workDir is not writeable.");
+        if (!is_dir($this->jobDir))
+            if (!mkdir($this->jobDir, 0775, true))
+                throw new RuntimeException("The jobDir $this->jobDir is not writeable.");
+    }
+
     public function cleanupOldFiles(int $maxAgeSeconds = 600): void
     {
         $now = time();
@@ -259,6 +261,7 @@ $service = new ShareService(
 );
 
 try {
+    $service->setupFolders();
     $service->cleanupOldFiles();   // auto-cleanup
 
     $action = $_REQUEST['action'] ?? null;
