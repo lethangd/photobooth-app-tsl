@@ -12,6 +12,7 @@ from ..base_plugin import BasePlugin
 from .config import RemoteConfig, SynchronizerConfig
 from .immediate_synchronizer import ThreadedImmediateSyncPipeline
 from .regular_synchronizer import ThreadedRegularSync
+from .shareondemand import ShareOnDemandService
 from .types import TaskCopy, TaskDelete
 from .utils import get_corresponding_remote_file
 
@@ -27,9 +28,10 @@ class SynchronizerRclone(BasePlugin[SynchronizerConfig]):
 
         self._immediate_pipeline: ThreadedImmediateSyncPipeline | None = None
         self._regular_sync: ThreadedRegularSync | None = None
+        self._shareondemand: ShareOnDemandService | None = None
 
     def __str__(self):
-        return "SynchronizerRclone"
+        return "Sync and Share Online"
 
     @hookimpl
     def start(self):
@@ -65,6 +67,15 @@ class SynchronizerRclone(BasePlugin[SynchronizerConfig]):
             remotes=_immediate_sync_remotes,
         )
 
+        if self._config.ondemandshareconfig.enabled:
+            self._shareondemand = ShareOnDemandService(
+                rclone=self._rclone_client,
+                remote_name=self._config.ondemandshareconfig.name,
+                remote_subdir=self._config.ondemandshareconfig.subdir,
+                baseurl=self._config.ondemandshareconfig.baseurl,
+                apikey=self._config.ondemandshareconfig.api_key,
+            )
+
         for r in _copy_sharepage_to_remotes:
             self._copy_sharepage_to_remotes(r)
 
@@ -76,6 +87,9 @@ class SynchronizerRclone(BasePlugin[SynchronizerConfig]):
 
         if self._immediate_pipeline:
             self._immediate_pipeline.stop()
+
+        if self._shareondemand:
+            self._shareondemand.stop()
 
         if self._rclone_client:
             self._rclone_client.stop()
@@ -213,6 +227,9 @@ class SynchronizerRclone(BasePlugin[SynchronizerConfig]):
             )
 
             share_links.append(formatted_custom_qr_url)
+
+        if self._shareondemand:
+            share_links.append(self._shareondemand.get_share_link(identifier))
 
         for remote in self._config.remotes:
             shareconfig = remote.shareconfig

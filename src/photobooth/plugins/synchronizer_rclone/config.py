@@ -1,3 +1,4 @@
+import secrets
 import sys
 from platform import node
 from typing import Literal
@@ -105,6 +106,34 @@ class ShareConfig(BaseModel):
     )
 
 
+class OndemandShareConfig(BaseModel):
+    enabled: bool = Field(
+        default=False,
+        description="Enable synchronization on this remote",
+    )
+    description: str = Field(
+        default="default description",
+        description="",
+    )
+    name: str = Field(
+        default="",
+        description="Name of the remote given during configuration including the ':' at the end. You need to setup the remote separately using the rclone web-ui at http://localhost:5573/. To sync to local folders set '/' (Linux) or 'C:\\' (Windows) and use subdir as target.",
+        json_schema_extra={"list_api": "/api/admin/enumerate/rclone_remotes"},
+    )
+    subdir: str = Field(
+        default="tmp/subdir",
+        description="Subdir that is used as base to sync to. In this directory the sharepage (subdir/index.html) and mediafiles (subdir/media/) will be placed. WARNING: This directory is owned by the app - it will delete unknown files!",
+    )
+    api_key: str = Field(
+        default_factory=lambda: secrets.token_hex(4),
+        description="Random key that is used to protect the api.php endpoint against unauthorized use.",
+    )
+    baseurl: str = Field(
+        default="http://localhost/",
+        description="URL used to build the links for QR codes pointing to the sharepage (if enabled above).",
+    )
+
+
 class RemoteConfig(BaseModel):
     enabled: bool = Field(
         default=False,
@@ -164,3 +193,11 @@ class SynchronizerConfig(BaseConfig):
             shareconfig=ShareConfig(),
         )
     ]
+
+    ondemandshareconfig: OndemandShareConfig = OndemandShareConfig(
+        enabled=False,
+        description="demo localremote",
+        name="C:\\" if sys.platform == "win32" else "/",
+        subdir="/var/www/html/ondemandshare/",
+        baseurl="http://localhost/ondemandshare/",
+    )
