@@ -55,7 +55,7 @@ jobs:
         if: always()
         run: |
           cat phpd.log || true
-          cat ./srv_php_endpoint/php-error.log || true
+          cat /srv_php_endpoint/php-error.log || true
       - uses: actions/upload-artifact@v7
         with:
           name: coverage-hosted-linux-${{ matrix.python-version }}
