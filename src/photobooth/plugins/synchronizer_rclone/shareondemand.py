@@ -224,7 +224,7 @@ class ShareOnDemandService:
                         r_upload.raise_for_status()
 
                     except requests.HTTPError as exc:
-                        assert exc.response
+                        assert exc.response is not None
                         logger.warning(exc)
                         logger.warning(f"upload failed {exc.response.status_code}: {exc.response.text}")
                         # try again?
