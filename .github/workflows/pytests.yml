@@ -16,7 +16,7 @@ jobs:
       synchronizer_rclone-ondemandshareconfig__apikey: "runnertestingpassword"
       synchronizer_rclone-ondemandshareconfig__baseurl: "http://localhost:8082/"
       synchronizer_rclone-ondemandshareconfig__name: "/"
-      synchronizer_rclone-ondemandshareconfig__subdir: "srv_php_endpoint"
+      synchronizer_rclone-ondemandshareconfig__subdir: "tmp/srv_php_endpoint"
       PHP_CLI_SERVER_WORKERS: 6
     runs-on: ubuntu-latest
     continue-on-error: false
@@ -34,8 +34,8 @@ jobs:
       - name: start php built-in server to allow testing shareondemand
         run: |
           # sed -i '0,/changedefault!/s//runnertestingpassword/' extras/shareondemand/api.php
-          mkdir ./srv_php_endpoint
-          nohup php -S localhost:8082 -t ./srv_php_endpoint/ > phpd.log 2>&1 &
+          mkdir /tmp/srv_php_endpoint
+          nohup php -S localhost:8082 -t /tmp/srv_php_endpoint/ > phpd.log 2>&1 &
       - name: Set up Python and uv ${{ matrix.python-version }}
         uses: astral-sh/setup-uv@v8.2.0
         with:

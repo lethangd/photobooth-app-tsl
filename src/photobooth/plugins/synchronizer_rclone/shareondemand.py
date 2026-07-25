@@ -142,7 +142,8 @@ class ShareOnDemandService:
                     err = f"unknown exception {exc}"
 
                 logger.error(
-                    f"server error code {r_stream.status_code if r_stream is not None else '?'} for req URL {r_stream.url if r_stream is not None else '?'}: {err}"
+                    f"server error code {r_stream.status_code if r_stream is not None else '?'} "
+                    f"for req URL {r_stream.url if r_stream is not None else '?'}: {err}"
                 )
                 time.sleep(10)
                 continue
