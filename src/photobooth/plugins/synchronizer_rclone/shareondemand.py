@@ -64,7 +64,7 @@ class ShareOnDemandService:
 
         # replace the default apikey by the chosen one
         content = api_source_path.read_text(encoding="utf-8")
-        patched = content.replace("changedefault!", self.apikey, count=1)  # count=1, only replace first occurence
+        patched = content.replace("changedefault!", self.apikey, 1)  # count=1, only replace first occurence, keyword since 3.13 only
 
         # write patched version to a temp file
         with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as tmp:
