@@ -73,7 +73,7 @@ class SynchronizerRclone(BasePlugin[SynchronizerConfig]):
                 remote_name=self._config.ondemandshareconfig.name,
                 remote_subdir=self._config.ondemandshareconfig.subdir,
                 baseurl=self._config.ondemandshareconfig.baseurl,
-                apikey=self._config.ondemandshareconfig.api_key,
+                apikey=self._config.ondemandshareconfig.apikey,
             )
 
         for r in _copy_sharepage_to_remotes:

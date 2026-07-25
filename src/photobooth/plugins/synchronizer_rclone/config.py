@@ -124,7 +124,7 @@ class OndemandShareConfig(BaseModel):
         default="tmp/subdir",
         description="Subdir that is used as base to sync to. In this directory the sharepage (subdir/index.html) and mediafiles (subdir/media/) will be placed. WARNING: This directory is owned by the app - it will delete unknown files!",
     )
-    api_key: str = Field(
+    apikey: str = Field(
         default_factory=lambda: secrets.token_hex(4),
         description="Random key that is used to protect the api.php endpoint against unauthorized use.",
     )
@@ -198,6 +198,6 @@ class SynchronizerConfig(BaseConfig):
         enabled=False,
         description="demo localremote",
         name="C:\\" if sys.platform == "win32" else "/",
-        subdir="/var/www/html/ondemandshare/",
+        subdir="var/www/html/ondemandshare/",
         baseurl="http://localhost/ondemandshare/",
     )

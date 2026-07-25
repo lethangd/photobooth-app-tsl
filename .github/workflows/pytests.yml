@@ -13,8 +13,10 @@ permissions:
 jobs:
   tests-hosted-linux:
     env:
-      shareondemand__apikey: "runnertestingpassword"
-      shareondemand__baseurl: "http://localhost:8082/"
+      synchronizer_rclone-ondemandshareconfig__apikey: "runnertestingpassword"
+      synchronizer_rclone-ondemandshareconfig__baseurl: "http://localhost:8082/"
+      synchronizer_rclone-ondemandshareconfig__name: "/"
+      synchronizer_rclone-ondemandshareconfig__subdir: "srv_php_endpoint"
       PHP_CLI_SERVER_WORKERS: 6
     runs-on: ubuntu-latest
     continue-on-error: false
@@ -31,8 +33,9 @@ jobs:
           ini-values: upload_max_filesize=50M, post_max_size=51M, memory_limit=200M, max_execution_time=180
       - name: start php built-in server to allow testing shareondemand
         run: |
-          sed -i '0,/changedefault!/s//runnertestingpassword/' extras/shareondemand/api.php
-          nohup php -S localhost:8082 -t extras/shareondemand/ > phpd.log 2>&1 &
+          # sed -i '0,/changedefault!/s//runnertestingpassword/' extras/shareondemand/api.php
+          mkdir ./srv_php_endpoint
+          nohup php -S localhost:8082 -t ./srv_php_endpoint/ > phpd.log 2>&1 &
       - name: Set up Python and uv ${{ matrix.python-version }}
         uses: astral-sh/setup-uv@v8.2.0
         with:
@@ -52,7 +55,7 @@ jobs:
         if: always()
         run: |
           cat phpd.log || true
-          cat extras/shareondemand/php-error.log || true
+          cat ./srv_php_endpoint/php-error.log || true
       - uses: actions/upload-artifact@v7
         with:
           name: coverage-hosted-linux-${{ matrix.python-version }}

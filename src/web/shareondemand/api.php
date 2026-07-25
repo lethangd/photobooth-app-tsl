@@ -5,7 +5,11 @@ namespace Photobooth;
 use RuntimeException;
 use function strlen, count, intval; // use global functions
 
-const API_KEY = "changedefault!";   // <-- user changes this
+const APIKEY = "changedefault!";   // <-- user changes this
+
+
+class AuthException extends RuntimeException {}
+
 
 final class ShareService
 {
@@ -41,13 +45,13 @@ final class ShareService
     private function validateApiKey(string $key): void
     {
         if (strlen($this->apiKey) < 8) {
-            throw new RuntimeException('The API key is empty or too short! The key needs to be at least 8 characters.');
+            throw new AuthException('The API key is empty or too short! The key needs to be at least 8 characters.');
         }
         if ($this->apiKey == "changedefault!") {
-            throw new RuntimeException('The API key is the default value! You need to set a custom api key.');
+            throw new AuthException('The API key is the default value! You need to set a custom api key.');
         }
         if ($key !== $this->apiKey) {
-            throw new RuntimeException("Invalid API key!");
+            throw new AuthException("Invalid API key!");
         }
     }
 
@@ -100,8 +104,7 @@ final class ShareService
                 $file = basename($pending[0]);
                 $id = explode(".", $file)[0];
 
-                $this->setStatus($id, "assigned");
-
+                // error_log("pending job sent to client waiting for ack, id $id");
                 echo json_encode(["id" => $id]) . "\n";
             } else {
                 echo json_encode(["ping" => time()]) . "\n";
@@ -115,6 +118,24 @@ final class ShareService
             usleep($loopTime_us);
             $elapsed += $loopTime;
         }
+    }
+
+    public function accept(): void
+    {
+        $this->validateApiKey($_POST['apikey'] ?? '');
+        $id = $_POST['id'] ?? null;
+
+        if (!$id) {
+            throw new RuntimeException("Missing id");
+        }
+
+        if (!$this->hasStatus($id, "pending")) {
+            throw new RuntimeException("Job not pending");
+        }
+
+        $this->setStatus($id, "assigned");
+
+        echo json_encode(["detail" => "accepted"]);
     }
 
     public function upload(): void
@@ -136,29 +157,29 @@ final class ShareService
             throw new RuntimeException("No file uploaded");
         }
 
-        $tmp = $_FILES['upload_file']['tmp_name'];
-        if (!$tmp || filesize($tmp) === 0) {
+        $tmp_name = $_FILES['upload_file']['tmp_name'];
+        if (!$tmp_name || filesize($tmp_name) === 0) {
             $this->setStatus($id, "failed");
             throw new RuntimeException("Empty file");
         }
-        if (filesize($tmp) > $this->maxSize) {
+        if (filesize($tmp_name) > $this->maxSize) {
             $this->setStatus($id, "failed");
             throw new RuntimeException("File too large");
         }
 
-        $mime = mime_content_type($tmp);
+        $mime = mime_content_type($tmp_name);
         if (!isset(self::ALLOWED_TYPES[$mime])) {
             $this->setStatus($id, "failed");
-            throw new RuntimeException("File type not allowed");
+            throw new RuntimeException("File type $mime not allowed");
         }
 
         $ext = self::ALLOWED_TYPES[$mime];
         $filename = "$id.$ext";
         $dest = "$this->workDir/$filename";
 
-        if (!move_uploaded_file($tmp, $dest)) {
+        if (!move_uploaded_file($tmp_name, $dest)) {
             $this->setStatus($id, "failed");
-            throw new RuntimeException("Failed to store file");
+            throw new RuntimeException("Failed to store file $tmp_name to $dest");
         }
 
         $this->setStatus($id, "uploaded");
@@ -255,7 +276,7 @@ final class ShareService
 }
 
 $service = new ShareService(
-    apiKey: API_KEY,
+    apiKey: APIKEY,
     workDir: __DIR__ . "/uploads",
     jobDir: __DIR__ . "/jobs"
 );
@@ -269,6 +290,9 @@ try {
     switch ($action) {
         case "upload_queue":
             $service->uploadQueue();
+            break;
+        case "accept":
+            $service->accept();
             break;
         case "upload":
             $service->upload();
@@ -286,11 +310,21 @@ try {
                 "type" => "error"
             ]);
     }
+} catch (AuthException $e) {
+    error_log("AuthException: " . $e->getMessage());
+
+    http_response_code(401);
+    
+    echo json_encode([
+        "detail" => $e->getMessage(),
+        "type" => "auth_error"
+    ]);
 } catch (RuntimeException $e) {
     error_log("RuntimeException: " . $e->getMessage());
 
     // JSON is safest for browser + photobooth
     http_response_code(500);
+    
     echo json_encode([
         "detail" => $e->getMessage(),
         "type" => "error"
