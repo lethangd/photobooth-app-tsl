@@ -282,8 +282,16 @@ $service = new ShareService(
 );
 
 try {
+    // lockfile to setup folders and cleanup because otherwise multiple requests could interfere
+    // setupfolder checks in thread A if folder exists, no, then creates it and in thread B it also not exists, tries to recreate the now existing dir
+    $lock = fopen(sys_get_temp_dir() . "/share_service_setup.lock", "c");
+    flock($lock, LOCK_EX);
     $service->setupFolders();
     $service->cleanupOldFiles();   // auto-cleanup
+    flock($lock, LOCK_UN);
+    fclose($lock);
+
+
 
     $action = $_REQUEST['action'] ?? null;
 
