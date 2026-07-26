@@ -76,6 +76,8 @@ class SynchronizerRclone(BasePlugin[SynchronizerConfig]):
                 apikey=self._config.ondemandshareconfig.apikey,
             )
 
+            self._shareondemand.start()
+
         for r in _copy_sharepage_to_remotes:
             self._copy_sharepage_to_remotes(r)
 
