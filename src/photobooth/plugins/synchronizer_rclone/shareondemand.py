@@ -17,6 +17,7 @@ import requests
 from rclone_api.api import RcloneApi
 
 from ...services.mediacollection.database import Database
+from ...utils.resilientservice import QuietCrashReporter, ResilientService
 from ...utils.stoppablethread import StoppableThread
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 API_PHP = "api.php"
 
 
-class ShareOnDemandService:
+class ShareOnDemandService(ResilientService):
     def __init__(self, rclone: RcloneApi, remote_name: str, remote_subdir: str, baseurl: str, apikey: str):
 
         # objects
@@ -41,20 +42,16 @@ class ShareOnDemandService:
         self.shareservice_api_php_url = baseurl.rstrip("/") + "/" + API_PHP
         self.operational_flag = Event()
 
+        super().__init__(crash_reporter=QuietCrashReporter(self.__class__.__name__))
+
     def start(self):
         self.operational_flag.clear()
-
-        self._worker_thread = StoppableThread(name="ShareOnDemand_worker", target=self._worker_fun, daemon=True)
-        self._worker_thread.start()
-
+        super().start()
         logger.debug(f"{self.__class__.__name__} started using endpoint baseurl {self.baseurl}.")
 
     def stop(self):
         self.operational_flag.clear()
-
-        if self._worker_thread and self._worker_thread.is_alive():
-            self._worker_thread.stop()
-            self._worker_thread.join()
+        super().stop()
 
     def _copy_frontend_to_remote(self):
         assert self.rclone
@@ -103,16 +100,22 @@ class ShareOnDemandService:
 
         return download_portal_url + quote(mediaitem_url, safe="")
 
-    def _worker_fun(self):
-        assert self._worker_thread
+    def setup_resource(self):
+        """setup the resource right before run_service logic"""
 
         logger.info("starting ShareOnDemand worker_thread")
         self._copy_frontend_to_remote()
 
         self.operational_flag.set()
 
+    def teardown_resource(self):
+        """tear down the resource right after run_service logic and in case of crashes"""
+
+    def run_service(self):
+        """service logic to be run when the service is started"""
+
         # outer while loop: connect to uploadqueue-stream
-        while not self._worker_thread.stopped():
+        while not self._stop_event.is_set():
             payload = {"action": "upload_queue", "apikey": self.apikey}
             r_stream = None
 
@@ -131,8 +134,7 @@ class ShareOnDemandService:
 
             except requests.exceptions.ReadTimeout as exc:
                 logger.warning(f"error connecting to service: {exc}")
-                time.sleep(10)
-                continue  # try again after wait time
+                raise
             except requests.HTTPError:
                 try:
                     err = r_stream.json() if r_stream is not None else "no further details"
@@ -145,12 +147,11 @@ class ShareOnDemandService:
                     f"server error code {r_stream.status_code if r_stream is not None else '?'} "
                     f"for req URL {r_stream.url if r_stream is not None else '?'}: {err}"
                 )
-                time.sleep(10)
-                continue
+                raise
+
             except Exception as exc:
                 logger.error(f"unknown error occured: {exc}")
-                time.sleep(10)
-                continue  # try again after wait time
+                raise
 
             if r_stream.encoding is None:
                 r_stream.encoding = "utf-8"
@@ -158,15 +159,14 @@ class ShareOnDemandService:
             stream_it = r_stream.iter_lines(chunk_size=1, decode_unicode=True)
 
             # inner while loop: check stream for upload job requested
-            while not self._worker_thread.stopped():
+            while not self._stop_event.is_set():
                 try:
                     line = next(stream_it)
                 except StopIteration:
                     logger.debug("api.php script finished after some time. stopiteration issued-reconnect")
                     break
-                except Exception as exc:
-                    logger.warning(f"encountered shareservice connection issue. retrying. error: {exc}")
-                    break
+                except Exception:
+                    raise
 
                 # filter out keep-alive new lines
 
@@ -179,8 +179,7 @@ class ShareOnDemandService:
                         f"webserver setup and webserver's logs. error: {exc}"
                         f"URL trying to connect is {self.shareservice_api_php_url}"
                     )
-                    time.sleep(5)  # if url is wrong just slow down to not reconnect every second.
-                    break
+                    raise
 
                 upload_id: str | None = decoded_line.get("id", None)
                 if upload_id:
@@ -188,7 +187,7 @@ class ShareOnDemandService:
                     logger.debug(f"got upload job, id {upload_id}")
 
                     # protect the following path - to ensure it would complete or gets stopped before accepting.
-                    if self._worker_thread.stopped():
+                    if self._stop_event.is_set():
                         break
 
                     # ACK senden
@@ -240,7 +239,7 @@ class ShareOnDemandService:
                 else:
                     logger.error(f"invalid queue line, ignore: {line}")
 
-            if not self._worker_thread.stopped():
+            if not self._stop_event.is_set():
                 # usually api.php finishes after several minutes and the client needs to reconnect again.
                 logger.info("restarting loop wait 1 second")
                 time.sleep(1)
