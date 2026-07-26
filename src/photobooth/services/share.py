@@ -172,7 +172,6 @@ class ShareService(BaseService):
 
         except Exception as exc:
             # other errors (timeout, OSError, etc.)
-            logger.exception("Unexpected error running command")
             raise RuntimeError(f"Unexpected error running command: {exc}") from exc
 
         else:

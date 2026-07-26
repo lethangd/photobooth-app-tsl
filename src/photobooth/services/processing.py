@@ -175,8 +175,7 @@ class ProcessingService(BaseService):
                     self._workflow_jobmodel._status_sm.send("next")
 
         except Exception as exc:
-            logger.exception(exc)
-            logger.error(f"the job failed, error: {exc}")
+            logger.error(f"the job failed, error: {exc}", exc_info=exc)
 
             # Error processing the job 😔 Please try again. Check the logs if the error is permanent!
             sse_service.dispatch_event(SseEventTranslateableFrontendNotification(color="negative", message_key="processing.job_failed"))

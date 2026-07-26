@@ -85,6 +85,5 @@ def api_applyfilter(mediaitem_id: UUID, filter: str):
         # update at last in db after processing is finished because in that moment the clients get their sseUpdate notification and cache is busted
         container.mediacollection_service.update_item(mediaitem)
     except Exception as exc:
-        logger.exception(exc)
-        logger.error(f"apply pipeline failed, reason: {exc}.")
+        logger.error(f"apply pipeline failed, reason: {exc}", exc_info=exc)
         raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f"apply pipeline failed, reason: {exc}.") from exc

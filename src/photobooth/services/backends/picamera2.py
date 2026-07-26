@@ -198,8 +198,7 @@ class Picamera2Backend(AbstractBackend):
                 # if this happens, backend signals error and shall be restarted.
                 self._picamera2.switch_mode(config)
             except Exception as exc:
-                logger.exception(exc)
-                logger.critical(f"error switching mode in picamera due to {exc}")
+                logger.critical(f"error switching mode in picamera due to {exc}", exc_info=exc)
                 raise exc
             else:
                 self._picamera2.start_encoder(

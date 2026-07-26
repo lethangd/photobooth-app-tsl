@@ -89,8 +89,7 @@ class DigicamcontrolBackend(AbstractBackend):
             r = session.get(f"{self._config.base_url}/?CMD=All_Minimize")
             r.raise_for_status()
         except Exception as exc:
-            logger.exception(exc)
-            logger.error("fail set preview mode! no power? no connection?")
+            logger.error("fail set preview mode! no power? no connection?", exc_info=exc)
         else:
             logger.debug("set preview mode successful")
 
