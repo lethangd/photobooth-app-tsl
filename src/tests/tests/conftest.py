@@ -10,7 +10,6 @@ from photobooth.appconfig import appconfig
 from photobooth.application import app
 from photobooth.container import container
 from photobooth.database.database import create_db_and_tables
-from photobooth.database.types import MediaitemTypes
 from photobooth.services.collection import MediacollectionService
 from tests.tests.util import dummy_mediaitem
 
@@ -47,7 +46,7 @@ def global_function_setup1():
     try:
         latest = mcs.get_item_latest()
 
-        if latest.media_type is not MediaitemTypes.image:
+        if latest.media_type != "image":
             create = True
     except FileNotFoundError:
         create = True

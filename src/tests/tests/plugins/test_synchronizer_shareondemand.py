@@ -11,7 +11,6 @@ import requests
 
 from photobooth import PATH_CAMERA_ORIGINAL, PATH_PROCESSED
 from photobooth.database.models import Mediaitem
-from photobooth.database.types import MediaitemTypes
 from photobooth.plugins.synchronizer_rclone.config import SynchronizerConfig
 from photobooth.plugins.synchronizer_rclone.shareondemand import ShareOnDemandService
 from photobooth.plugins.synchronizer_rclone.synchronizer_rclone import RcloneApi
@@ -79,7 +78,7 @@ def _mediaitem(request) -> Generator[Mediaitem, None, None]:
 
     new_item_instance = Mediaitem(
         job_identifier=uuid4(),
-        media_type=MediaitemTypes.image,
+        media_type="image",
         captured_original=dummy_file_path_original,
         processed=Path(PATH_PROCESSED, dummy_file_path_original.name),
         pipeline_config={},

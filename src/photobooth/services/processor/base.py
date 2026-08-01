@@ -12,7 +12,6 @@ from statemachine import Event
 from ... import PATH_CAMERA_ORIGINAL, PATH_PROCESSED
 from ...appconfig import appconfig
 from ...database.models import Mediaitem, MediaitemTypes
-from ...database.types import DimensionTypes
 from ...utils.countdowntimer import CountdownTimer
 from ...utils.helper import filename_str_time
 from ..collection import Cache
@@ -98,7 +97,7 @@ class JobModelBase(ABC, Generic[T]):
         """Export model as dict for UI (needs to be jsonserializable)"""
 
         out = dict(
-            typ=self._media_type.value,
+            typ=self._media_type,
             total_captures_to_take=self.total_captures_to_take,
             remaining_captures_to_take=self.remaining_captures_to_take,
             number_captures_taken=self.captures_taken,
@@ -223,14 +222,14 @@ class JobModelBase(ABC, Generic[T]):
         mediaitem = Mediaitem(
             id=uuid4(),
             job_identifier=self._job_identifier,
-            media_type=MediaitemTypes.image,
+            media_type="image",
             processed=Path(PATH_PROCESSED, original_filenamepath),
             captured_original=captured_original,
             pipeline_config=pipeline_config.model_dump(mode="json"),
             show_in_gallery=show_in_gallery,
         )
 
-        cacheditem = self._cache.get_cached_repr(mediaitem, DimensionTypes.full, processed=False)
+        cacheditem = self._cache.get_cached_repr(mediaitem, "full", processed=False)
         process_phase1images(cacheditem.filepath, mediaitem)
 
         assert mediaitem.processed.is_file()

@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.orm.attributes import flag_modified
 
-from photobooth.database.models import Mediaitem, MediaitemTypes
+from photobooth.database.models import Mediaitem
 from photobooth.services.collection import MediacollectionService
 from tests.tests.util import dummy_mediaitem
 
@@ -53,7 +53,7 @@ def test_add_item_filedoesntexist(cs: MediacollectionService):
         cs.add_item(
             Mediaitem(
                 job_identifier=uuid4(),
-                media_type=MediaitemTypes.image,
+                media_type="image",
                 processed=Path("./src/tests/assets/input_nonexistant.jpg"),
                 pipeline_config={},
                 show_in_gallery=True,

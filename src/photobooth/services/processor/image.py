@@ -2,7 +2,6 @@ import logging
 
 from statemachine import Event
 
-from ...database.models import MediaitemTypes
 from ..acquisition import AcquisitionService
 from ..config.groups.actions import SingleImageConfigurationSet
 from .base import Capture, CaptureSet, JobModelBase
@@ -11,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class JobModelImage(JobModelBase[SingleImageConfigurationSet]):
-    _media_type = MediaitemTypes.image
+    _media_type = "image"
 
     def __init__(self, configuration_set: SingleImageConfigurationSet, acquisition_service: AcquisitionService):
         super().__init__(configuration_set, acquisition_service=acquisition_service)

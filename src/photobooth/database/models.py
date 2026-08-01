@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 from sqlalchemy import UUID, Boolean, DateTime, Enum, ForeignKey, Integer, String, event
 from sqlalchemy.dialects.sqlite import JSON
@@ -36,7 +36,7 @@ class Mediaitem(Base):
 
     rowid: Mapped[int] = mapped_column(Integer, system=True)  # used to get last item (https://stackoverflow.com/a/78857439)
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), default=uuid.uuid4, primary_key=True)
-    media_type: Mapped[MediaitemTypes] = mapped_column(Enum(MediaitemTypes))
+    media_type: Mapped[MediaitemTypes] = mapped_column(Enum(*get_args(MediaitemTypes)))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # used for cache invalidation/browser cache busting
@@ -67,7 +67,7 @@ class Cacheditem(Base):
 
     # following are the unique combination to identify if a cached obj is avail or no
     mediaitem_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("mediaitems.id"), index=True)
-    dimension: Mapped[DimensionTypes] = mapped_column(Enum(DimensionTypes), index=True)
+    dimension: Mapped[DimensionTypes] = mapped_column(Enum(*get_args(DimensionTypes)), index=True)
     processed: Mapped[bool] = mapped_column(Boolean, index=True)
 
     # revision is used to detect if the original mediaitem was updated (new filter applied, or something)
@@ -77,4 +77,4 @@ class Cacheditem(Base):
     filepath: Mapped[Path] = mapped_column(PathType)
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__}> filepath: {self.filepath}, dimension: {self.dimension.value}"
+        return f"<{self.__class__.__name__}> filepath: {self.filepath}, dimension: {self.dimension}"

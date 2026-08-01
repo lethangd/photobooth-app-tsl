@@ -6,7 +6,7 @@ from statemachine import Event
 
 from ... import PATH_PROCESSED
 from ...appconfig import appconfig
-from ...database.models import Mediaitem, MediaitemTypes
+from ...database.models import Mediaitem
 from ...utils.helper import filename_str_time
 from ..acquisition import AcquisitionService
 from ..config.groups.actions import AnimationConfigurationSet, SingleImageProcessing
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class JobModelAnimation(JobModelBase[AnimationConfigurationSet]):
-    _media_type = MediaitemTypes.animation
+    _media_type = "animation"
 
     def __init__(self, configuration_set: AnimationConfigurationSet, acquisition_service: AcquisitionService):
         super().__init__(configuration_set, acquisition_service=acquisition_service)

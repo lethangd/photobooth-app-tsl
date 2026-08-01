@@ -5,7 +5,7 @@ from uuid import uuid4
 from statemachine import Event
 
 from ... import PATH_PROCESSED
-from ...database.models import Mediaitem, MediaitemTypes
+from ...database.models import Mediaitem
 from ...utils.helper import filename_str_time
 from ..acquisition import AcquisitionService
 from ..config.groups.actions import CollageConfigurationSet, SingleImageProcessing
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class JobModelCollage(JobModelBase[CollageConfigurationSet]):
-    _media_type = MediaitemTypes.collage
+    _media_type = "collage"
 
     def __init__(self, configuration_set: CollageConfigurationSet, acquisition_service: AcquisitionService):
         super().__init__(configuration_set, acquisition_service=acquisition_service)

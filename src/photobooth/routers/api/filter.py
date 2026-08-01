@@ -5,7 +5,6 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Response, status
 
 from ...container import container
-from ...database.models import DimensionTypes
 from ...services.config.groups.actions import SingleImageProcessing
 from ...services.config.models.models import PluginFilters
 from ...services.mediaprocessing.processes import process_image_inner, process_phase1images
@@ -36,7 +35,7 @@ def api_get_preview_image_filtered(mediaitem_id: UUID, filter: str):
 
     try:
         mediaitem = container.mediacollection_service.get_item(item_id=mediaitem_id)
-        thumbnail = container.mediacollection_service.cache.get_cached_repr(item=mediaitem, dimension=DimensionTypes.thumbnail, processed=False)
+        thumbnail = container.mediacollection_service.cache.get_cached_repr(item=mediaitem, dimension="thumbnail", processed=False)
 
         # along with mediaitem the config was stored. cast it back to original pydantic type, update filter and forward to processing
         # all other pipeline-steps need to be disabled here for fast preview. false is default so no need to set here.
@@ -76,7 +75,7 @@ def api_applyfilter(mediaitem_id: UUID, filter: str):
 
         mediaitem_cached_repr_full = container.mediacollection_service.cache.get_cached_repr(
             item=mediaitem,
-            dimension=DimensionTypes.full,
+            dimension="full",
             processed=False,
         )
 

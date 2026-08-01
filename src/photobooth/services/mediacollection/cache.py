@@ -21,7 +21,7 @@ class Cache:
         self._lock_cache_check: Lock = Lock()
 
     def get_cached_repr(self, item: Mediaitem, dimension: DimensionTypes, processed: bool = True) -> Cacheditem:
-        dimension_pixel = getattr(appconfig.mediaprocessing, f"{dimension.value}_still_length", None)
+        dimension_pixel = getattr(appconfig.mediaprocessing, f"{dimension}_still_length", None)
 
         if not item.id:
             raise ValueError("there is no item.id given - cannot create cached representation without id!")
@@ -42,7 +42,7 @@ class Cache:
                 else:
                     id = uuid4()
                     file_in = item.processed if processed else item.captured_original
-                    file_out_stem = f"{id.hex}_{'proc' if processed else 'unproc'}_{dimension.name}"
+                    file_out_stem = f"{id.hex}_{'proc' if processed else 'unproc'}_{dimension}"
 
                     # this should not happen, because there is no way to apply filters or similar to a mediaitem that has no original
                     # for example collages have no captured original but only processed full because it is generated from several originals.
@@ -57,7 +57,7 @@ class Cache:
                         filepath=Path(CACHE_PATH, file_out_stem).with_suffix(item.processed.suffix),
                     )
 
-                    with MetricsTimer(f"generate resized '{dimension.value}' for {cacheditem_new.filepath}"):
+                    with MetricsTimer(f"generate resized '{dimension}' for {cacheditem_new.filepath}"):
                         resize(
                             filepath_in=file_in,
                             filepath_out=cacheditem_new.filepath,
