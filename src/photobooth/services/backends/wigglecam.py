@@ -118,6 +118,7 @@ class WigglecamBackend(AbstractBackend):
 
         # Collect results keyed by device_id
         results: dict[int, Path] = {}
+        timestamps: dict[int, int] = {}
 
         while len(results) < len(expected_device_ids):
             try:
@@ -132,12 +133,14 @@ class WigglecamBackend(AbstractBackend):
                     logger.warning(f"warning, duplicate device_id {msg.device_id} result received, ignored! Maybe wrong configuration?")
                     continue
 
-                fname = f"wigglenode_device_id-{msg.device_id}.jpg"
+                # filename no guarantee for uniqueness, in subfolder it's unique though
+                fname = f"wigglenode_device_id-{msg.device_id}-{msg.timestamp}.jpg"
                 fpath = job_folder / fname
                 with open(fpath, "wb") as f:
                     f.write(msg.jpg_bytes)
 
                 results[msg.device_id] = fpath
+                timestamps[msg.device_id] = msg.timestamp
 
             except pynng.exceptions.Timeout:
                 if results:
@@ -149,6 +152,7 @@ class WigglecamBackend(AbstractBackend):
                 raise TimeoutError("timeout receiving captures from nodes") from None
 
         logger.info(f"Finished receiving captures. Results from device-ids '{set(results)}' saved to {job_folder}")
+        logger.info(f"timestamps of received images: {timestamps}")
 
         # Build ordered list according to config.devices
         files_out = [results[i] for i in range(len(self._config.devices)) if i in results]
