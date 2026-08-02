@@ -123,6 +123,9 @@ class WebcamPyavBackend(AbstractBackend):
 
                 continue
 
+            except av.error.ArgumentError as exc:
+                # could be raised during decoding when the camera disconnects - this is not a permanent error then.
+                raise RuntimeError(f"Error decoding camera frame! Error: {exc}") from exc
             except Exception as exc:
                 raise PermanentFault("Error decoding camera frame! Check the camera settings (device name, fps, resolution, ...)") from exc
 
@@ -135,6 +138,9 @@ class WebcamPyavBackend(AbstractBackend):
         try:
             return packet.decode()[0]
 
+        except av.error.ArgumentError as exc:
+            # could be raised during decoding when the camera disconnects - this is not a permanent error then.
+            raise RuntimeError(f"Error decoding camera frame! Error: {exc}") from exc
         except Exception as exc:
             del packet
             raise PermanentFault("Error decoding camera frame! Ensure the settings are correct (device name, fps, resolution, ...)") from exc
