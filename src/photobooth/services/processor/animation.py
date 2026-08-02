@@ -13,7 +13,8 @@ from ..config.groups.actions import AnimationConfigurationSet, SingleImageProces
 from ..config.models.frameoverlay import FrameOverlay
 from ..config.models.models import PluginFilters
 from ..mediaprocessing.processes import process_and_generate_animation
-from .base import Capture, CaptureSet, JobModelBase
+from .base import JobModelBase
+from .models import Capture, CaptureSet, UiCaptureDefinition, UiFrameOverlay
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,18 @@ class JobModelAnimation(JobModelBase[AnimationConfigurationSet]):
     @property
     def total_captures_to_take(self) -> int:
         return self._get_number_of_captures_from_merge_definition(self._configuration_set.processing.merge_definition)
+
+    @property
+    def captures_definition(self) -> UiCaptureDefinition | None:
+        return UiCaptureDefinition(
+            "-",
+            width=self._configuration_set.processing.canvas_width,
+            height=self._configuration_set.processing.canvas_height,
+        )
+
+    @property
+    def frame_overlay(self) -> UiFrameOverlay | None:
+        return None
 
     def on_enter_counting(self):
         self._acquisition_service.thrill_still()

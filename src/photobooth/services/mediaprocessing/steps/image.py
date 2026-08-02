@@ -111,7 +111,7 @@ class ImageMountStep(PipelineStep):
         background_img_adjusted = ImageOps.fit(
             background_img,
             context.image.size,
-            method=Image.Resampling.LANCZOS,
+            method=Image.Resampling.BICUBIC,
         )
 
         # paste the actual image to the background
@@ -152,8 +152,8 @@ class ImageFrameStep(PipelineStep):
 
         try:
             # detect boundary box of transparent area, for this get alphachannel, invert and getbbox:
-            alpha = np.asarray(image_frame.getchannel("A"))
-            mask_np = (alpha < 255).astype(np.uint8) * 255  # Maske erzeugen: 255 für transparent, 0 für opaque
+            alpha = image_frame.getchannel("A")
+            mask_np = (np.asarray(alpha) < 255).astype(np.uint8) * 255  # Maske erzeugen: 255 für transparent, 0 für opaque
             mask = Image.fromarray(mask_np, mode="L")
 
             transparent_xy = mask.getbbox()
@@ -169,7 +169,7 @@ class ImageFrameStep(PipelineStep):
         logger.info(f"detected transparent area {transparent_xy=}, {transparent_size=}")
 
         # create a fitted version of input image (captured) that will cover-fit the transparent area
-        image_fitted = ImageOps.fit(context.image, transparent_size, method=Image.Resampling.LANCZOS)
+        image_fitted = ImageOps.fit(context.image, transparent_size, method=Image.Resampling.BICUBIC)
 
         # create new image
         result_image = Image.new("RGBA", image_frame.size)  # with alpha channel of same size as frame image

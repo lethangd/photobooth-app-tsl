@@ -14,5 +14,5 @@ class FrameOverlay(BaseModel):
     )
     mirror_effect: bool = Field(
         default=False,
-        description="Flip the overlay image horizontally to achieve a mirror effect. This can be useful as it helps users to gather and align in the scene. Text in the image appears in the wrong direction but the final image is correct as the effect is only applied during display, not job processing.",
+        description="Flip the overlay image horizontally. This can be when the livestream is also flipped (mirror-effect on) as it helps users to gather and align in the scene. Text in the overlay appears in the wrong direction but the final image is correct as the effect is only applied during display, not job processing.",
     )

@@ -11,7 +11,8 @@ from ...utils.helper import filename_str_time
 from ..acquisition import AcquisitionService
 from ..config.groups.actions import MulticameraConfigurationSet, SingleImageProcessing
 from ..mediaprocessing.processes import process_and_generate_wigglegram
-from .base import Capture, CaptureSet, JobModelBase
+from .base import JobModelBase
+from .models import Capture, CaptureSet, UiFrameOverlay
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,14 @@ class JobModelMulticamera(JobModelBase[MulticameraConfigurationSet]):
     @property
     def total_captures_to_take(self) -> int:
         return 1
+
+    @property
+    def captures_definition(self):
+        return None
+
+    @property
+    def frame_overlay(self) -> UiFrameOverlay | None:
+        return None
 
     def on_enter_counting(self):
         self._acquisition_service.thrill_multicam()
