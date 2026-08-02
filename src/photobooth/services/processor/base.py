@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Generic, TypeVar
 from uuid import UUID, uuid4
@@ -26,6 +25,7 @@ from ..config.groups.actions import (
 from ..config.models.models import AnimationMergeDefinition, CollageMergeDefinition
 from ..mediaprocessing.processes import process_phase1images
 from .machine.processingmachine import ProcessingMachine
+from .models import CaptureSet, UiCaptureDefinition, UiFrameOverlay, UiJobModel
 
 if TYPE_CHECKING:
     from ..acquisition import AcquisitionService
@@ -33,21 +33,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseConfigurationSet)
-
-
-@dataclass
-class Capture:
-    filepath: Path
-    uuid: UUID = field(default_factory=uuid4)
-
-    def __repr__(self):
-        return f"<{self.__class__.__name__}> file {self.filepath}"
-
-
-@dataclass
-class CaptureSet:
-    captures: list[Capture]
-    uuid: UUID = field(default_factory=uuid4)
 
 
 class JobModelBase(ABC, Generic[T]):
@@ -93,10 +78,9 @@ class JobModelBase(ABC, Generic[T]):
     def __repr__(self):
         return f"<{self.__class__.__name__}> job-id={self._job_identifier} total captures to take={self.total_captures_to_take}"
 
-    def export(self) -> dict[str, str | int | float | None | dict]:
+    def export(self) -> UiJobModel:
         """Export model as dict for UI (needs to be jsonserializable)"""
-
-        out = dict(
+        return UiJobModel(
             typ=self._media_type,
             total_captures_to_take=self.total_captures_to_take,
             remaining_captures_to_take=self.remaining_captures_to_take,
@@ -104,10 +88,9 @@ class JobModelBase(ABC, Generic[T]):
             duration=self._countdown_timer._duration + appconfig.cameras.countdown_camera_capture_offset if self._countdown_timer._duration else 0,
             present_mediaitem_id=str(self._present_mediaitem_id) if self._present_mediaitem_id else None,
             approval_id=str(self._approval_id) if self._approval_id else None,
-            configuration_set=self._configuration_set.model_dump(mode="json"),
+            frame_overlay=self.frame_overlay,
+            captures_definition=self.captures_definition,
         )
-
-        return out
 
     ## states logic to implement by the models
 
@@ -174,6 +157,16 @@ class JobModelBase(ABC, Generic[T]):
     @abstractmethod
     def total_captures_to_take(self) -> int:
         """number of captures to take during a job"""
+
+    @property
+    @abstractmethod
+    def captures_definition(self) -> UiCaptureDefinition | None:
+        """ui definition for current capture to take during a job"""
+
+    @property
+    @abstractmethod
+    def frame_overlay(self) -> UiFrameOverlay | None:
+        """overlay used during a job"""
 
     @property
     def captures_taken(self) -> int:

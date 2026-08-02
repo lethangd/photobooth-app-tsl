@@ -12,7 +12,8 @@ from ..config.groups.actions import CollageConfigurationSet, SingleImageProcessi
 from ..config.models.frameoverlay import FrameOverlay
 from ..config.models.models import PluginFilters
 from ..mediaprocessing.processes import process_and_generate_collage
-from .base import Capture, CaptureSet, JobModelBase
+from .base import JobModelBase
+from .models import Capture, CaptureSet, UiCaptureDefinition, UiFrameOverlay
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,20 @@ class JobModelCollage(JobModelBase[CollageConfigurationSet]):
     def total_captures_to_take(self) -> int:
         return self._get_number_of_captures_from_merge_definition(self._configuration_set.processing.merge_definition)
 
+    @property
+    def captures_definition(self) -> UiCaptureDefinition | None:
+        cds = [cd for cd in self._configuration_set.processing.merge_definition if not cd.predefined_image]
+        try:
+            cd = cds[self.captures_taken]
+        except IndexError:
+            return None
+
+        return UiCaptureDefinition(cd.description, width=cd.width, height=cd.height)
+
+    @property
+    def frame_overlay(self) -> UiFrameOverlay | None:
+        return None
+
     def on_enter_counting(self):
         self._acquisition_service.thrill_still()
 
@@ -39,8 +54,17 @@ class JobModelCollage(JobModelBase[CollageConfigurationSet]):
 
     def on_enter_capture(self):
         logger.info(f"current capture ({self.captures_taken + 1}/{self.total_captures_to_take}, remaining {self.remaining_captures_to_take - 1})")
+        assert self.captures_definition
 
-        captureset = CaptureSet([Capture(self._acquisition_service.wait_for_still_file())])
+        captureset = CaptureSet(
+            [
+                Capture(
+                    self._acquisition_service.wait_for_still_file(),
+                    target_width=self.captures_definition.width,
+                    target_height=self.captures_definition.height,
+                ),
+            ]
+        )
 
         # add to tmp collection
         # update model so it knows the latest number of captures and the machine can react accordingly if finished
