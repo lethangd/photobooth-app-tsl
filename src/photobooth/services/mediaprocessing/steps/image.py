@@ -9,6 +9,7 @@ from itertools import chain
 from pathlib import Path
 from threading import Lock
 
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from pydantic_extra_types.color import Color
 
@@ -140,6 +141,7 @@ class ImageFrameStep(PipelineStep):
 
     def __call__(self, context: ImageContext, next_step: NextStep) -> None:
         # check frame is avail, otherwise send pipelineerror
+
         try:
             frame_path = self.frame_file
             # convert to rgba because there could be paletted PNGs in mode P but still with alpha in info.transparency.
@@ -150,7 +152,12 @@ class ImageFrameStep(PipelineStep):
 
         try:
             # detect boundary box of transparent area, for this get alphachannel, invert and getbbox:
-            transparent_xy = ImageOps.invert(image_frame.getchannel("A")).getbbox()  # getchannel A returns img mode 'L'
+            alpha = np.asarray(image_frame.getchannel("A"))
+            mask_np = (alpha < 255).astype(np.uint8) * 255  # Maske erzeugen: 255 für transparent, 0 für opaque
+            mask = Image.fromarray(mask_np, mode="L")
+
+            transparent_xy = mask.getbbox()
+
         except Exception as exc:  # no transparent channel A
             raise PipelineError(f"error processing image, cannot apply stage, error {exc}") from exc
 
