@@ -3,12 +3,14 @@ AppConfig class providing central config
 file called appconfig_ to avoid conflicts with the singleton appconfig in __init__
 """
 
+import json
 import logging
 import os
 import shutil
 from datetime import datetime
 from pathlib import Path
 
+import jsonref
 from pydantic_settings import BaseSettings, JsonConfigSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -70,9 +72,11 @@ class BaseConfig(BaseSettings):
     def get_schema(self):
         """Get schema to build UI. Schema is polished to the needs of UI"""
         schema = self.model_json_schema()
-        self._fix_single_allof(schema)
+        # self._fix_single_allof(schema)
 
-        return schema
+        # keep jsonref for now until this is solved:
+        # https://jsonforms.discourse.group/t/error-on-recursive-schema-maximum-recursive-updates-exceeded-in-component-oneofrenderer/2798
+        return jsonref.loads(json.dumps(schema))
 
     def get_current(self, secrets_is_allowed: bool = False):
         return self.model_dump(context={"secrets_is_allowed": secrets_is_allowed}, mode="json")
