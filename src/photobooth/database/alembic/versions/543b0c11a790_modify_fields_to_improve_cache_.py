@@ -20,9 +20,21 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column("cacheditems", sa.Column("revision", sa.Integer(), nullable=False))
+    # SQLite-safe: use batch_alter_table so Alembic recreates the table as columns cannot be changed after creation.
+
+    # Step 1: Add column with temporary server default (outside batch)
+    op.add_column("mediaitems", sa.Column("revision", sa.Integer(), nullable=False, server_default="0"))
+    # Step 2: Remove server default inside batch (table recreation)
+    with op.batch_alter_table("mediaitems") as batch_op:
+        batch_op.alter_column("revision", existing_type=sa.Integer(), server_default=None, existing_nullable=False)
+
+    # Step 1: Add column with temporary server default (outside batch)
+    op.add_column("cacheditems", sa.Column("revision", sa.Integer(), nullable=False, server_default="0"))
+    # Step 2: Remove server default inside batch (table recreation)
+    with op.batch_alter_table("cacheditems") as batch_op:
+        batch_op.alter_column("revision", existing_type=sa.Integer(), server_default=None, existing_nullable=False)
+
     op.drop_column("cacheditems", "created_at")
-    op.add_column("mediaitems", sa.Column("revision", sa.Integer(), nullable=False))
     op.drop_column("mediaitems", "updated_at")
     op.drop_column("mediaitems", "unprocessed")
     # ### end Alembic commands ###
