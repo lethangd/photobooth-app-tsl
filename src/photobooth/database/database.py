@@ -22,9 +22,9 @@ engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args=connect_args)  # , 
 def create_db_and_tables():
     db_exists = os.path.exists(SQLALCHEMY_DATABASE_FILE)
     inspector = inspect(engine)  # creates empty db, so db file check needs to be before!
-    alembic_cfg = Config()
 
-    # from your settings or environment
+    cfg_path = Path(__file__).parent / "alembic" / "alembic.ini"
+    alembic_cfg = Config(cfg_path)
     alembic_cfg.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL)
     alembic_cfg.set_main_option("script_location", str(Path(Path(__file__).parent.absolute(), "alembic")))
 
