@@ -40,6 +40,9 @@ class InformationService(BaseService):
         self._cpu_percent: float = 0.0
         self._skip_gathering: set = set()
 
+    def start(self):
+        super().start()
+
         # log some very basic common information
         logger.info(f"Platform: {platform.uname()}")
         logger.info(f"System release: {platform.release()}")
@@ -49,8 +52,6 @@ class InformationService(BaseService):
         logger.info(f"CPU count: {psutil.cpu_count()}")
         logger.info(f"Disk usage of working dir: {psutil.disk_usage(str(Path.cwd().absolute())).percent}")
 
-    def start(self):
-        super().start()
         self._stats_interval_timer.start()
         self._cpu_percent_thread = StoppableThread(name="_on_cpu_percent_worker", target=self._on_cpu_percent_fun, daemon=True)
         self._cpu_percent_thread.start()

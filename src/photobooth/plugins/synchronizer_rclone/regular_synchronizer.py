@@ -77,7 +77,7 @@ class ThreadedRegularSync:
                     # this is used to avoid submitting operations to a usb drive that is not attached currently.
                     self.rclone.ls(r.name, r.subdir)
                 except RcloneProcessException as exc:
-                    logger.info(f"{r.name}{r.subdir} not available, error code {exc.status}, skipping.")
+                    logger.error(f"{r.name}{r.subdir} not available, error code {exc.status}, skipping.")
                     continue
 
                 if r.copy_only_mode:

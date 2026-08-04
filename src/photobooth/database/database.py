@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -9,6 +10,8 @@ from .. import DATABASE_PATH
 
 # import here, because create_all/alembic then creates all models that were imported.
 from . import models
+
+logger = logging.getLogger(f"{__name__}")
 
 _ = models.Base.metadata  # touch Base so linters see usage
 
@@ -30,13 +33,13 @@ def create_db_and_tables():
 
     # Check if Alembic has already stamped the DB
     if not db_exists:
-        print("Setup new sqlite database now")
+        logger.info("Initialize empty SQLite database.")
         command.upgrade(alembic_cfg, "head")
     elif not inspector.has_table("alembic_version"):
-        print("Existing database found that was not stamped yet. Stamp it to initial database schema and run migrations.")
+        logger.info("Existing database found. Stamping it and initialize the alembic version table.")
         # we can stamp because there has been only 1 database out in production until today.
         command.stamp(alembic_cfg, "7e0d6dfb1b1d")
         command.upgrade(alembic_cfg, "head")
     else:
-        print("Existing stamped database found. running migrations if needed.")
+        logger.info("Existing database found. Checking for migrations.")
         command.upgrade(alembic_cfg, "head")

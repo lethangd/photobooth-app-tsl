@@ -169,8 +169,8 @@ class LoggingService(BaseService):
             "pywifi",
             "v4l2py",
             "linuxpy",
-            "httpcore",  # nextcloud
-            "httpx",  # nextcloud
+            "httpcore2",
+            "httpx2",
         ]:
             # mute some other logger, by raising their debug level to INFO
             lgr = logging.getLogger(name=name)
