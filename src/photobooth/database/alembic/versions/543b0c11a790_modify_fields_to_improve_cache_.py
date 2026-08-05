@@ -22,11 +22,15 @@ def upgrade() -> None:
     """Upgrade schema."""
     # SQLite-safe: use batch_alter_table so Alembic recreates the table as columns cannot be changed after creation.
 
+    # mediaitems add revision col
     # Step 1: Add column with temporary server default (outside batch)
     op.add_column("mediaitems", sa.Column("revision", sa.Integer(), nullable=False, server_default="0"))
     # Step 2: Remove server default inside batch (table recreation)
     with op.batch_alter_table("mediaitems") as batch_op:
         batch_op.alter_column("revision", existing_type=sa.Integer(), server_default=None, existing_nullable=False)
+
+    # cacheditems add revision col
+    op.execute("DELETE FROM cacheditems")  # cached items could have some orphaned elements, to ensure consistency, we clear the cache before
 
     # Step 1: Add column with temporary server default (outside batch)
     op.add_column("cacheditems", sa.Column("revision", sa.Integer(), nullable=False, server_default="0"))
