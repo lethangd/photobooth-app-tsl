@@ -19,7 +19,7 @@ from photobooth.utils.helper import filename_str_time
 
 logger = logging.getLogger(name=None)
 
-if os.getenv("synchronizer_rclone-ondemandshareconfig__apikey") is None:
+if os.getenv("synchronizer-ondemandshareconfig__apikey") is None:
     pytest.skip("Skipping ShareOnDemand tests outside Linux CI job", allow_module_level=True)
 
 

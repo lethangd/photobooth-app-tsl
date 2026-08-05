@@ -16,8 +16,8 @@ def sync():
     """Create a SynchronizerRclone with mocked config + mocked rclone client."""
 
     with (
-        patch("photobooth.plugins.synchronizer_rclone.synchronizer_rclone.RcloneApi") as mock_rclone_ctor,
-        patch("photobooth.plugins.synchronizer_rclone.synchronizer_rclone.ThreadedImmediateSyncPipeline") as mock_pipeline_ctor,
+        patch("photobooth.plugins.synchronizer.synchronizer.RcloneApi") as mock_rclone_ctor,
+        patch("photobooth.plugins.synchronizer.synchronizer.ThreadedImmediateSyncPipeline") as mock_pipeline_ctor,
     ):
         mock_client = MagicMock()
         mock_pipeline = MagicMock()
@@ -135,7 +135,7 @@ def test_get_stats_error(sync: Synchronizer):
 # ---------------------------------------------------------------------------
 def test_copy_sharepage_to_remotes(sync: Synchronizer):
     # Patch resources.files("web").joinpath("sharepage/index.html")
-    with patch("photobooth.plugins.synchronizer_rclone.synchronizer_rclone.resources.files") as mock_files:
+    with patch("photobooth.plugins.synchronizer.synchronizer.resources.files") as mock_files:
         # Make joinpath return a real file path (this test file)
         mock_files.return_value.joinpath.return_value = Path(__file__)
         r = sync._config.remotes[0]

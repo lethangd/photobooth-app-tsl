@@ -13,10 +13,10 @@ permissions:
 jobs:
   tests-hosted-linux:
     env:
-      synchronizer_rclone-ondemandshareconfig__apikey: "runnertestingpassword"
-      synchronizer_rclone-ondemandshareconfig__baseurl: "http://localhost:8082/"
-      synchronizer_rclone-ondemandshareconfig__name: "/"
-      synchronizer_rclone-ondemandshareconfig__subdir: "tmp/srv_php_endpoint"
+      synchronizer-ondemandshareconfig__apikey: "runnertestingpassword"
+      synchronizer-ondemandshareconfig__baseurl: "http://localhost:8082/"
+      synchronizer-ondemandshareconfig__name: "/"
+      synchronizer-ondemandshareconfig__subdir: "tmp/srv_php_endpoint"
       PHP_CLI_SERVER_WORKERS: 6
     runs-on: ubuntu-latest
     continue-on-error: false

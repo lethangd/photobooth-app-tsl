@@ -171,7 +171,7 @@ class RemoteConfig(BaseModel):
 class SynchronizerConfig(BaseConfig):
     model_config = SettingsConfigDict(
         title="Synchronizer and Share-Link Generation",
-        json_file=f"{CONFIG_PATH}plugin_synchronizer_rclone.json",
+        json_file=f"{CONFIG_PATH}plugin_synchronizer.json",
         env_prefix="synchronizer-",
     )
 
