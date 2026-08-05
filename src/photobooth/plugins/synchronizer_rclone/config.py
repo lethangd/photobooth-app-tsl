@@ -43,10 +43,9 @@ class Common(BaseModel):
     )
 
 
-class RcloneClientConfig(BaseModel):
-    model_config = SettingsConfigDict(
-        title="Global Rclone Instance Settings",
-    )
+class RcloneConfig(BaseModel):
+    model_config = SettingsConfigDict(title="Rclone Instance Settings")
+
     rclone_enable_logging: bool = Field(
         default=True,
         description="Enable logging to log/rclone.log.",
@@ -54,15 +53,6 @@ class RcloneClientConfig(BaseModel):
     rclone_log_level: Literal["DEBUG", "INFO", "NOTICE", "ERROR"] = Field(
         default="NOTICE",
         description="Log verbosity.",
-    )
-
-    use_local_config_file: bool = Field(
-        default=False,
-        description="Enable using the local config file for rclone.",
-    )
-    local_config_file: str = Field(
-        default="./config/rclone.conf",
-        description="If use_local_config_file is enabled, this file will be used instead the automatically detected. Useful for write-protected systems. Use a relative path to store below the photobooth-app data dir. Recommended to store in ./config/rclone.conf",
     )
 
     rclone_transfers: int = Field(
@@ -81,7 +71,12 @@ class RcloneClientConfig(BaseModel):
 
     enable_webui: bool = Field(
         default=True,
-        description="Enable the web interface of rclone. It will be accessible from the device running the app only for security reasons. http://localhost:5573",
+        description="Enable the web interface of Rclone. By default it will be accessible from the device running the app only for security reasons. Access usually via http://localhost:5573/login?url=http://localhost:5572",
+    )
+
+    webui_allow_remote_access: bool = Field(
+        default=False,
+        description="If the webui is enabled, it will be bound to localhost by default, accessible only from the same device running the app. Enable remote access to connect from other network devices. WARNING: Enable only if the network is accessed only by trusted devices!",
     )
 
 
@@ -177,12 +172,12 @@ class SynchronizerConfig(BaseConfig):
     model_config = SettingsConfigDict(
         title="Synchronizer and Share-Link Generation",
         json_file=f"{CONFIG_PATH}plugin_synchronizer_rclone.json",
-        env_prefix="synchronizer_rclone-",
+        env_prefix="synchronizer-",
     )
 
     common: Common = Common()
 
-    rclone_client_config: RcloneClientConfig = RcloneClientConfig()
+    rclone_config: RcloneConfig = RcloneConfig()
 
     remotes: list[RemoteConfig] = [
         RemoteConfig(

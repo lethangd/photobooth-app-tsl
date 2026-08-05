@@ -123,7 +123,7 @@ def dslr_gphoto2() -> list[int]:
 
 def rclone_remotes() -> list[str]:
     with enumerate_lock:
-        rclone_api = RcloneApi(bind="localhost:5574")
+        rclone_api = RcloneApi(bind="localhost:5574", config_file=Path("./config/rclone.conf"))
         rclone_api.start()
         remotes = rclone_api.config_listremotes().remotes
         rclone_api.stop()

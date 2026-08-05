@@ -39,18 +39,20 @@ class SynchronizerRclone(BasePlugin[SynchronizerConfig]):
             logger.info("Synchronizer Plugin is disabled")
             return
 
-        _log_file = Path("log/rclone.log") if self._config.rclone_client_config.rclone_enable_logging else None
-        _config_file = Path(self._config.rclone_client_config.local_config_file) if self._config.rclone_client_config.use_local_config_file else None
+        _bind_gui = "0.0.0.0:5573" if self._config.rclone_config.webui_allow_remote_access else "127.0.0.1:5573"
+        _log_file = Path("log/rclone.log") if self._config.rclone_config.rclone_enable_logging else None
+        _config_file = Path("./config/rclone.conf")
         _immediate_sync_remotes: list[RemoteConfig] = [x for x in self._config.remotes if x and x.enable_immediate_sync]
         _full_sync_remotes: list[RemoteConfig] = [x for x in self._config.remotes if x and x.enable_regular_sync]
         _copy_sharepage_to_remotes = [x for x in self._config.remotes if x.enabled and x.enable_sharepage_sync]
 
         self._rclone_client = RcloneApi(
+            bind_gui=_bind_gui,
             log_file=_log_file,
-            log_level=self._config.rclone_client_config.rclone_log_level,
-            transfers=self._config.rclone_client_config.rclone_transfers,
-            checkers=self._config.rclone_client_config.rclone_checkers,
-            enable_webui=self._config.rclone_client_config.enable_webui,
+            log_level=self._config.rclone_config.rclone_log_level,
+            transfers=self._config.rclone_config.rclone_transfers,
+            checkers=self._config.rclone_config.rclone_checkers,
+            enable_webui=self._config.rclone_config.enable_webui,
             config_file=_config_file,
             # bwlimit="1M",
         )

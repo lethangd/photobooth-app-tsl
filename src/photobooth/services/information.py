@@ -49,7 +49,6 @@ class InformationService(BaseService):
         logger.info(f"Machine: {platform.machine()}")
         logger.info(f"Python version: {platform.python_version()}")
         logger.info(f"Computer model: {self._gather_model()}")
-        logger.info(f"CPU count: {psutil.cpu_count()}")
         logger.info(f"Disk usage of working dir: {psutil.disk_usage(str(Path.cwd().absolute())).percent}")
 
         self._stats_interval_timer.start()
