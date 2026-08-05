@@ -44,6 +44,9 @@ class ShareOnDemandService(ResilientService):
 
         super().__init__(crash_reporter=QuietCrashReporter(self.__class__.__name__))
 
+    def __str__(self):
+        return f"{self.__class__.__name__}"
+
     def start(self):
         self.operational_flag.clear()
         super().start()
@@ -199,14 +202,15 @@ class ShareOnDemandService(ResilientService):
 
                     # set the file to be uploaded
                     request_upload_file = {}
+                    file_handle = None
                     try:
                         mediaitem_to_upload = self._mediacollection_db.get_item(UUID(upload_id))
-                    except Exception as exc:
-                        logger.error(f"mediaitem not found, error: {exc}")
-                        logger.info("sending upload request to api.php anyway to signal failure")
-                    else:
                         logger.info(f"uploading {mediaitem_to_upload}")
-                        request_upload_file = {"upload_file": open(mediaitem_to_upload.processed, "rb")}
+
+                        file_handle = open(mediaitem_to_upload.processed, "rb")
+                        request_upload_file = {"upload_file": file_handle}
+                    except Exception as exc:
+                        logger.error(f"mediaitem not found, error: {exc}. Sending upload request to api.php anyway to signal failure")
 
                     ## send request
                     start_time = time.time()
@@ -215,7 +219,7 @@ class ShareOnDemandService(ResilientService):
                     try:
                         r_upload = requests.post(
                             self.shareservice_api_php_url,
-                            files=request_upload_file,  # type: ignore
+                            files=request_upload_file,
                             data={"action": "upload", "apikey": self.apikey, "id": upload_id},
                             timeout=9,
                             allow_redirects=False,
@@ -224,16 +228,17 @@ class ShareOnDemandService(ResilientService):
 
                     except requests.HTTPError as exc:
                         assert exc.response is not None
-                        logger.warning(exc)
                         logger.warning(f"upload failed {exc.response.status_code}: {exc.response.text}")
                         # try again?
                     except Exception as exc:
                         logger.warning(f"upload failed, err: {exc}")
                         # try again?
-
                     else:
-                        logger.debug(f"response from remote server: {r_upload.text}")
-                        logger.debug(f"-- request took: {round((time.time() - start_time), 2)}s")
+                        logger.debug(f"upload took {round((time.time() - start_time), 2)}s, answer from server: {r_upload.text}")
+                    finally:
+                        if file_handle is not None:
+                            file_handle.close()
+
                 elif decoded_line.get("ping", None):
                     pass
                 else:

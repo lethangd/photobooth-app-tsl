@@ -150,8 +150,6 @@ def test_shareondemand_download_all_mediaitem_types(sod_srv: ShareOnDemandServic
 def test_shareondemand_download_nonexistant_image(sod_srv: ShareOnDemandService):
     """start service and try to download an image that does not exist"""
 
-    logger.warning(sod_srv.apikey)
-
     r = requests.get(
         sod_srv.shareservice_api_php_url,
         params={"action": "download", "id": uuid4().hex},
