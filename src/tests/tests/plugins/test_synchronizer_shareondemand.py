@@ -11,9 +11,9 @@ import requests
 
 from photobooth import PATH_CAMERA_ORIGINAL, PATH_PROCESSED
 from photobooth.database.models import Mediaitem
-from photobooth.plugins.synchronizer_rclone.config import SynchronizerConfig
-from photobooth.plugins.synchronizer_rclone.shareondemand import ShareOnDemandService
-from photobooth.plugins.synchronizer_rclone.synchronizer_rclone import RcloneApi
+from photobooth.plugins.synchronizer.config import SynchronizerConfig
+from photobooth.plugins.synchronizer.shareondemand import ShareOnDemandService
+from photobooth.plugins.synchronizer.synchronizer import RcloneApi
 from photobooth.services.mediacollection.database import Database
 from photobooth.utils.helper import filename_str_time
 

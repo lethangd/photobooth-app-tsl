@@ -9,7 +9,7 @@ from queue import Empty, PriorityQueue
 
 from rclone_api.api import RcloneApi, RcloneProcessException
 
-from photobooth.plugins.synchronizer_rclone.utils import get_corresponding_remote_file
+from photobooth.plugins.synchronizer.utils import get_corresponding_remote_file
 
 from .config import RemoteConfig
 from .types import CopyOperation, DeleteOperation, JobResult, JobStatus, TaskCopy, TaskDelete

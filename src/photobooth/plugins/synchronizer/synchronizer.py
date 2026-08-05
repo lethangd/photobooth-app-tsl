@@ -19,7 +19,7 @@ from .utils import get_corresponding_remote_file
 logger = logging.getLogger(__name__)
 
 
-class SynchronizerRclone(BasePlugin[SynchronizerConfig]):
+class Synchronizer(BasePlugin[SynchronizerConfig]):
     def __init__(self):
         super().__init__()
         self._config = SynchronizerConfig()
