@@ -42,9 +42,9 @@ class Synchronizer(BasePlugin[SynchronizerConfig]):
         _bind_gui = "0.0.0.0:5573" if self._config.rclone_config.webui_allow_remote_access else "127.0.0.1:5573"
         _log_file = Path("log/rclone.log") if self._config.rclone_config.rclone_enable_logging else None
         _config_file = Path("./config/rclone.conf")
-        _immediate_sync_remotes: list[RemoteConfig] = [x for x in self._config.remotes if x and x.enable_immediate_sync]
-        _full_sync_remotes: list[RemoteConfig] = [x for x in self._config.remotes if x and x.enable_regular_sync]
-        _copy_sharepage_to_remotes = [x for x in self._config.remotes if x.enabled and x.enable_sharepage_sync]
+        _immediate_sync_remotes: list[RemoteConfig] = [x for x in self._config.remotes if x and x.enable_immediate_sync and x.enabled]
+        _full_sync_remotes: list[RemoteConfig] = [x for x in self._config.remotes if x and x.enable_regular_sync and x.enabled]
+        _copy_sharepage_to_remotes = [x for x in self._config.remotes if x.enabled and x.enable_sharepage_sync and x.enabled]
 
         self._rclone_client = RcloneApi(
             bind_gui=_bind_gui,
