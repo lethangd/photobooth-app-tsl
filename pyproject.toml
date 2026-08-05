@@ -59,7 +59,7 @@ dependencies = [
   "av>=18.0.0,<18.1.0",
   "alembic>=1.15.2",
   "onnxruntime",
-  "rclone-bin-api>=1.0.5",
+  "rclone-bin-api>=1.0.7",
   "wigglecam>=0.4.2",                                                                      # to use the imagemessagedataclass, no dependencies in base module
   "pynng~=0.9.0",                                                                          # needs python3-dev package
   "requests",
@@ -76,7 +76,7 @@ commander = 'photobooth.plugins.commander.commander'
 gpio_lights = 'photobooth.plugins.gpio_lights.gpio_lights'
 wled = 'photobooth.plugins.wled.wled'
 filter_pilgram2 = 'photobooth.plugins.filter_pilgram2.filter_pilgram2'
-synchronizer_rclone = 'photobooth.plugins.synchronizer_rclone.synchronizer_rclone'
+synchronizer = 'photobooth.plugins.synchronizer.synchronizer'
 
 
 [project.urls]
