@@ -116,7 +116,7 @@ class ShareOnDemandService(ResilientService):
         logger.info("starting ShareOnDemand worker_thread")
 
         if not self._is_online():
-            raise ConnectionError("no internet connection, cannot start shareondemand service")
+            raise ConnectionError(f"no connection to host {self.baseurl}, cannot start shareondemand service")
 
         self._copy_frontend_to_remote()
 
