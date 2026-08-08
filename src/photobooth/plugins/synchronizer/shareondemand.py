@@ -145,11 +145,12 @@ class ShareOnDemandService(ResilientService):
 
                 # logger.debug(f"server message: {decoded_queue}")
 
-            except json.JSONDecodeError as exc:
+            except json.JSONDecodeError:
                 logger.error(
                     f"webserver response from webserver malformed. please check qr shareservice url, "
-                    f"webserver setup and webserver's logs. error: {exc}"
-                    f"URL trying to connect is {self.shareservice_api_php_url}"
+                    f"webserver setup and webserver's logs."
+                    f"URL trying to connect is {self.shareservice_api_php_url}, response is: "
+                    f"{queue_response.text if queue_response else 'unknown'}"
                 )
                 raise
             except httpx2.TimeoutException as exc:
