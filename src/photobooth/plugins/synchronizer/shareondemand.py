@@ -9,11 +9,10 @@ import time
 from importlib import resources
 from pathlib import Path
 from threading import Event
-from typing import Any
 from urllib.parse import quote
 from uuid import UUID
 
-import requests
+import httpx2
 from rclone_api.api import RcloneApi
 
 from ...services.mediacollection.database import Database
@@ -38,6 +37,7 @@ class ShareOnDemandService(ResilientService):
         self.remote_subdir: str = remote_subdir
         self.baseurl: str = baseurl
         self.apikey: str = apikey
+        self.poll_every: int = 1
 
         self.shareservice_api_php_url = baseurl.rstrip("/") + "/" + API_PHP
         self.operational_flag = Event()
@@ -55,6 +55,13 @@ class ShareOnDemandService(ResilientService):
     def stop(self):
         self.operational_flag.clear()
         super().stop()
+
+    def _is_online(self) -> bool:
+        try:
+            r = httpx2.head(self.baseurl, timeout=httpx2.Timeout(2))
+            return r.status_code < 500
+        except Exception:
+            return False
 
     def _copy_frontend_to_remote(self):
         assert self.rclone
@@ -107,6 +114,10 @@ class ShareOnDemandService(ResilientService):
         """setup the resource right before run_service logic"""
 
         logger.info("starting ShareOnDemand worker_thread")
+
+        if not self._is_online():
+            raise ConnectionError("no internet connection, cannot start shareondemand service")
+
         self._copy_frontend_to_remote()
 
         self.operational_flag.set()
@@ -119,134 +130,99 @@ class ShareOnDemandService(ResilientService):
 
         # outer while loop: connect to uploadqueue-stream
         while not self._stop_event.is_set():
-            payload = {"action": "upload_queue", "apikey": self.apikey}
-            r_stream = None
+            queue_response = None
 
             try:
-                r_stream = requests.post(
+                queue_response = httpx2.post(
                     self.shareservice_api_php_url,
-                    data=payload,
-                    stream=True,
-                    timeout=8,
-                    allow_redirects=False,
+                    data={"action": "getpendingjob", "apikey": self.apikey},
+                    timeout=httpx2.Timeout(5),
                 )
 
-                r_stream.raise_for_status()
+                queue_response.raise_for_status()
 
-                logger.info("successfully connected to the api")
+                decoded_queue = queue_response.json()
 
-            except requests.exceptions.ReadTimeout as exc:
-                logger.warning(f"error connecting to service: {exc}")
-                raise
-            except requests.HTTPError:
-                try:
-                    err = r_stream.json() if r_stream is not None else "no further details"
-                except json.JSONDecodeError:
-                    err = "cannot decode server's answer"
-                except Exception as exc:
-                    err = f"unknown exception {exc}"
+                # logger.debug(f"server message: {decoded_queue}")
 
+            except json.JSONDecodeError as exc:
                 logger.error(
-                    f"server error code {r_stream.status_code if r_stream is not None else '?'} "
-                    f"for req URL {r_stream.url if r_stream is not None else '?'}: {err}"
+                    f"webserver response from webserver malformed. please check qr shareservice url, "
+                    f"webserver setup and webserver's logs. error: {exc}"
+                    f"URL trying to connect is {self.shareservice_api_php_url}"
                 )
+                raise
+            except httpx2.TimeoutException as exc:
+                logger.warning(f"timeout connecting to service: {exc}")
+                raise
+            except httpx2.HTTPStatusError as exc:
+                logger.error(f"server error code {exc.response.status_code} for req URL {exc.request.url}: {exc.response.text}")
+
                 raise
 
             except Exception as exc:
                 logger.error(f"unknown error occured: {exc}")
                 raise
 
-            if r_stream.encoding is None:
-                r_stream.encoding = "utf-8"
+            upload_id: str | None = decoded_queue.get("id", None)
+            if upload_id:
+                # valid job check whether pending and upload
+                logger.debug(f"got upload job, id {upload_id}")
 
-            stream_it = r_stream.iter_lines(chunk_size=1, decode_unicode=True)
+                # ACK senden
+                httpx2.post(
+                    self.shareservice_api_php_url,
+                    data={"action": "accept", "apikey": self.apikey, "id": upload_id},
+                    timeout=5,
+                )
 
-            # inner while loop: check stream for upload job requested
-            while not self._stop_event.is_set():
+                # set the file to be uploaded
+                request_upload_file = {}
+                file_handle = None
                 try:
-                    line = next(stream_it)
-                except StopIteration:
-                    logger.debug("api.php script finished after some time. stopiteration issued-reconnect")
-                    break
-                except Exception:
-                    raise
+                    mediaitem_to_upload = self._mediacollection_db.get_item(UUID(upload_id))
+                    logger.info(f"Uploading {mediaitem_to_upload}")
 
-                # filter out keep-alive new lines
+                    file_handle = open(mediaitem_to_upload.processed, "rb")
+                    request_upload_file = {"upload_file": file_handle}
+                except Exception as exc:
+                    logger.error(f"Mediaitem not found, error: {exc}. Sending upload request to api.php anyway to signal failure")
+
+                ## send request
+                start_time = time.time()
+                r_upload = None
 
                 try:
-                    # if webserver not correctly setup, decoding might fail. catch exception mostly to inform user to debug
-                    decoded_line: dict[str, Any] = json.loads(line)
-                except json.JSONDecodeError as exc:
-                    logger.error(
-                        f"webserver response from webserver malformed. please check qr shareservice url, "
-                        f"webserver setup and webserver's logs. error: {exc}"
-                        f"URL trying to connect is {self.shareservice_api_php_url}"
-                    )
-                    raise
-
-                upload_id: str | None = decoded_line.get("id", None)
-                if upload_id:
-                    # valid job check whether pending and upload
-                    logger.debug(f"got upload job, id {upload_id}")
-
-                    # protect the following path - to ensure it would complete or gets stopped before accepting.
-                    if self._stop_event.is_set():
-                        break
-
-                    # ACK senden
-                    requests.post(
+                    r_upload = httpx2.post(
                         self.shareservice_api_php_url,
-                        data={"action": "accept", "apikey": self.apikey, "id": upload_id},
-                        timeout=5,
+                        files=request_upload_file,
+                        data={"action": "upload", "apikey": self.apikey, "id": upload_id},
+                        timeout=9,
+                        # follow_redirects=False,
                     )
+                    r_upload.raise_for_status()
 
-                    # set the file to be uploaded
-                    request_upload_file = {}
-                    file_handle = None
-                    try:
-                        mediaitem_to_upload = self._mediacollection_db.get_item(UUID(upload_id))
-                        logger.info(f"uploading {mediaitem_to_upload}")
-
-                        file_handle = open(mediaitem_to_upload.processed, "rb")
-                        request_upload_file = {"upload_file": file_handle}
-                    except Exception as exc:
-                        logger.error(f"mediaitem not found, error: {exc}. Sending upload request to api.php anyway to signal failure")
-
-                    ## send request
-                    start_time = time.time()
-                    r_upload = None
-
-                    try:
-                        r_upload = requests.post(
-                            self.shareservice_api_php_url,
-                            files=request_upload_file,
-                            data={"action": "upload", "apikey": self.apikey, "id": upload_id},
-                            timeout=9,
-                            allow_redirects=False,
-                        )
-                        r_upload.raise_for_status()
-
-                    except requests.HTTPError as exc:
-                        assert exc.response is not None
-                        logger.warning(f"upload failed {exc.response.status_code}: {exc.response.text}")
-                        # try again?
-                    except Exception as exc:
-                        logger.warning(f"upload failed, err: {exc}")
-                        # try again?
-                    else:
-                        logger.debug(f"upload took {round((time.time() - start_time), 2)}s, answer from server: {r_upload.text}")
-                    finally:
-                        if file_handle is not None:
-                            file_handle.close()
-
-                elif decoded_line.get("ping", None):
-                    pass
+                except httpx2.HTTPStatusError as exc:
+                    logger.warning(f"upload failed {exc.response.status_code}: {exc.response.text}")
+                    # try again?
+                except Exception as exc:
+                    logger.warning(f"upload failed, err: {exc}")
+                    # try again?
                 else:
-                    logger.error(f"invalid queue line, ignore: {line}")
+                    logger.debug(f"upload took {round((time.time() - start_time), 2)}s, answer from server: {r_upload.text}")
+                finally:
+                    if file_handle is not None:
+                        file_handle.close()
 
-            if not self._stop_event.is_set():
-                # usually api.php finishes after several minutes and the client needs to reconnect again.
-                logger.info("restarting loop wait 1 second")
-                time.sleep(1)
+            elif decoded_queue.get("ping", None):
+                pass
+
+            else:
+                logger.error(f"invalid queue message, ignore: {decoded_queue}")
+
+            if self._stop_event.is_set():
+                break
+
+            time.sleep(self.poll_every)
 
         logger.info("leaving shareservice workerthread")

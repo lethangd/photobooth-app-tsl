@@ -8,7 +8,9 @@ use function strlen, count, intval; // use global functions
 const APIKEY = "changedefault!";   // <-- user changes this
 
 
-class AuthException extends RuntimeException {}
+class AuthException extends RuntimeException
+{
+}
 
 
 final class ShareService
@@ -34,12 +36,6 @@ final class ShareService
         ini_set('display_errors', 0);
         ini_set('log_errors', 1);
         ini_set('error_log', __DIR__ . "/php-error.log");
-        ini_set('pcre.jit', 0);
-
-        // prevent nginx from additional buffering because the long running job would fail then
-        // nginx has additional buffer to php, the php buffer is flushed, but nginx not
-        header('X-Accel-Buffering: no');
-        ob_implicit_flush(true);
     }
 
     private function validateApiKey(string $key): void
@@ -87,36 +83,23 @@ final class ShareService
 
 
 
-    public function uploadQueue(): void
+    public function getPendingJob(): void
     {
         $this->validateApiKey($_POST['apikey'] ?? '');
 
-        $loopTime = 0.5;
-        $loopTime_us = intval($loopTime * 1_000_000);
-        $maxTime = 240;
-        $elapsed = 0;
 
 
-        while ($elapsed <= $maxTime) {
-            $pending = glob("$this->jobDir/*.pending");
+        $pending = glob("$this->jobDir/*.pending");
 
-            if (!empty($pending)) {
-                $file = basename($pending[0]);
-                $id = explode(".", $file)[0];
+        if (!empty($pending)) {
+            $file = basename($pending[0]);
+            $id = explode(".", $file)[0];
 
-                // error_log("pending job sent to client waiting for ack, id $id");
-                echo json_encode(["id" => $id]) . "\n";
-            } else {
-                echo json_encode(["ping" => time()]) . "\n";
+            // error_log("pending job sent to client waiting for ack, id $id");
+            echo json_encode(["id" => $id]) . "\n";
+        } else {
+            echo json_encode(["ping" => time()]) . "\n";
 
-            }
-
-            if (ob_get_level() > 0)
-                ob_flush(); # flush internal buffer (needed for php builtin webserver during testing)
-            flush();   # flush output buffer
-
-            usleep($loopTime_us);
-            $elapsed += $loopTime;
         }
     }
 
@@ -240,7 +223,8 @@ final class ShareService
         ]);
     }
 
-    public function setupFolders():void {
+    public function setupFolders(): void
+    {
         if (!is_dir($this->workDir))
             if (!mkdir($this->workDir, 0775, true))
                 throw new RuntimeException("The workDir $this->workDir is not writeable.");
@@ -296,8 +280,8 @@ try {
     $action = $_REQUEST['action'] ?? null;
 
     switch ($action) {
-        case "upload_queue":
-            $service->uploadQueue();
+        case "getpendingjob":
+            $service->getPendingJob();
             break;
         case "accept":
             $service->accept();
@@ -322,7 +306,7 @@ try {
     error_log("AuthException: " . $e->getMessage());
 
     http_response_code(401);
-    
+
     echo json_encode([
         "detail" => $e->getMessage(),
         "type" => "auth_error"
@@ -332,7 +316,7 @@ try {
 
     // JSON is safest for browser + photobooth
     http_response_code(500);
-    
+
     echo json_encode([
         "detail" => $e->getMessage(),
         "type" => "error"
