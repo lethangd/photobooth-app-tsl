@@ -1,6 +1,5 @@
 import hashlib
 import logging
-import mmap
 import time
 from collections.abc import Generator
 from itertools import cycle
@@ -33,24 +32,11 @@ class FolderImageSource:
         if not self.jpeg_paths:
             raise RuntimeError(f"No JPEGs found in {folder}")
 
-        self._files = []
-        self._mmaps = []
-
-        for path in self.jpeg_paths:
-            f = open(path, "rb")  # cannot use "with" unless we keep f
-            mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-
-            self._files.append(f)
-            self._mmaps.append(mm)
-
-        self.iter = cycle(self._mmaps)
+        self._frames = [p.read_bytes() for p in self.jpeg_paths]
+        self.iter = cycle(self._frames)
 
     def close(self):
-        for mm in self._mmaps:
-            mm.close()
-
-        for f in self._files:
-            f.close()
+        self._frames.clear()
 
 
 class VirtualCameraBackend(AbstractBackend):
@@ -104,6 +90,9 @@ class VirtualCameraBackend(AbstractBackend):
         self._images_iter = self.images()
 
     def teardown_resource(self):
+        if self._images_iter:
+            self._images_iter.close()
+
         if self._folder_image_source:
             self._folder_image_source.close()
 
