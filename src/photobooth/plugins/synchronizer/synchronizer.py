@@ -39,7 +39,8 @@ class Synchronizer(BasePlugin[SynchronizerConfig]):
             logger.info("Synchronizer Plugin is disabled")
             return
 
-        _bind_gui = "0.0.0.0:5573" if self._config.rclone_config.webui_allow_remote_access else "127.0.0.1:5573"
+        # _bind_gui = "0.0.0.0:5573" if self._config.rclone_config.webui_allow_remote_access else "127.0.0.1:5573"
+        _bind_gui = "127.0.0.1:5573"
         _log_file = Path("log/rclone.log") if self._config.rclone_config.rclone_enable_logging else None
         _config_file = Path("./config/rclone.conf")
         _immediate_sync_remotes: list[RemoteConfig] = [x for x in self._config.remotes if x and x.enable_immediate_sync and x.enabled]

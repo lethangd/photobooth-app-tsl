@@ -74,10 +74,10 @@ class RcloneConfig(BaseModel):
         description="Enable the web interface of Rclone. By default it will be accessible from the device running the app only for security reasons. Access usually via http://localhost:5573/login?url=http://localhost:5572",
     )
 
-    webui_allow_remote_access: bool = Field(
-        default=False,
-        description="If the webui is enabled, it will be bound to localhost by default, accessible only from the same device running the app. Enable remote access to connect from other network devices. WARNING: Enable only if the network is accessed only by trusted devices!",
-    )
+    # webui_allow_remote_access: bool = Field(
+    #     default=False,
+    #     description="If the webui is enabled, it will be bound to localhost by default, accessible only from the same device running the app. Enable remote access to connect from other network devices. WARNING: Enable only if the network is accessed only by trusted devices!",
+    # )
 
 
 class ShareConfig(BaseModel):
