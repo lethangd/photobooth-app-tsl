@@ -1,5 +1,6 @@
 import locale
 import os
+import stat
 import subprocess
 from pathlib import Path
 
@@ -40,6 +41,24 @@ def _create_basic_folders():
     os.makedirs(RECYCLE_PATH, exist_ok=True)
 
 
+def _path_is_link_or_junction(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+
+    if os.name != "nt":
+        return False
+
+    if hasattr(path, "is_junction"):
+        return path.is_junction()
+
+    try:
+        result = os.lstat(path)
+    except FileNotFoundError:
+        return False
+
+    return getattr(result, "st_reparse_tag", None) == stat.IO_REPARSE_TAG_MOUNT_POINT
+
+
 def _copy_demo_assets_to_userdata():
     def create_link(src_path: Path, dst_path: Path):
         # https://discuss.python.org/t/add-os-junction-pathlib-path-junction-to/50394
@@ -59,7 +78,7 @@ def _copy_demo_assets_to_userdata():
 
     if not dst_path.exists():
         create_link(src_path, dst_path)
-    elif dst_path.is_symlink() or (os.name == "nt" and dst_path.is_junction()):
+    elif _path_is_link_or_junction(dst_path):
         return
     else:
         raise RuntimeError(f"error setup demoassets, {dst_path} exists but is no symlink!")

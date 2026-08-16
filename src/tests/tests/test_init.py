@@ -40,13 +40,12 @@ def test_init_error_if_demoassets_is_no_symlink():
 
 
 def test_init_userdata_after_init_there_is_demoassets_symlink():
+    from photobooth import _copy_demo_assets_to_userdata, _path_is_link_or_junction
+
     target = Path(USERDATA_PATH, "demoassets")
     target.unlink(missing_ok=True)
 
     # starting the app creates the symlink
-    __import__("photobooth.__init__")
+    _copy_demo_assets_to_userdata()
 
-    if os.name == "nt":
-        assert target.is_junction()
-    else:
-        assert target.is_symlink()
+    assert _path_is_link_or_junction(target)

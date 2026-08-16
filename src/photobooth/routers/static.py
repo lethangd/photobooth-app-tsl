@@ -25,6 +25,13 @@ def ui_private_css():
 
 @static_router.get("/")
 def index():
-    """Serve index.html with forced revalidation (ETag checked every time)."""
+    """Serve the demo framebooth flow with forced revalidation."""
+    headers = {"Cache-Control": "no-cache"}
+    return FileResponse(path=Path(__file__).parent.parent.parent.joinpath("web/frontend", "framebooth.html").resolve(), headers=headers)
+
+
+@static_router.get("/classic")
+def classic_index():
+    """Serve the original SPA index.html with forced revalidation."""
     headers = {"Cache-Control": "no-cache"}
     return FileResponse(path=Path(__file__).parent.parent.parent.joinpath("web/frontend", "index.html").resolve(), headers=headers)

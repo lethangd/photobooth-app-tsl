@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Photobooth Frame Flow</title>
+    <style>
+      :root {
+        --ink: #101828;
+        --muted: #667085;
+        --line: #d0d5dd;
+        --panel: rgba(255, 255, 255, 0.9);
+        --blue: #196cb0;
+        --green: #12805c;
+        --red: #b42318;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #f2f4f7;
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      button {
+        border: 0;
+        cursor: pointer;
+        font: inherit;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+
+      .shell {
+        min-height: 100vh;
+        padding: 24px;
+      }
+
+      .topbar {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        margin: 0 auto 20px;
+        max-width: 1180px;
+      }
+
+      .brand {
+        font-size: 22px;
+        font-weight: 800;
+      }
+
+      .stage {
+        margin: 0 auto;
+        max-width: 1180px;
+      }
+
+      .title {
+        font-size: 42px;
+        font-weight: 850;
+        line-height: 1.05;
+        margin: 44px 0 12px;
+        text-align: center;
+      }
+
+      .subtitle {
+        color: var(--muted);
+        font-size: 18px;
+        margin: 0 auto 34px;
+        max-width: 780px;
+        text-align: center;
+      }
+
+      .cards {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+
+      .choice,
+      .template,
+      .photo {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: 0 18px 40px rgba(16, 24, 40, 0.08);
+        overflow: hidden;
+      }
+
+      .choice {
+        padding: 28px;
+        text-align: left;
+      }
+
+      .choice strong {
+        display: block;
+        font-size: 28px;
+        margin-bottom: 8px;
+      }
+
+      .choice span {
+        color: var(--muted);
+        display: block;
+      }
+
+      .choice:hover,
+      .template:hover,
+      .photo:hover {
+        border-color: var(--blue);
+      }
+
+      .capture-layout {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: minmax(0, 1fr) 320px;
+      }
+
+      .preview-wrap {
+        background: #000;
+        border-radius: 8px;
+        min-height: 62vh;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .preview-wrap img {
+        height: 100%;
+        inset: 0;
+        object-fit: cover;
+        position: absolute;
+        width: 100%;
+      }
+
+      .countdown {
+        align-items: center;
+        background: rgba(0, 0, 0, 0.42);
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        font-size: 110px;
+        font-weight: 900;
+        inset: 0;
+        justify-content: center;
+        position: absolute;
+        text-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+      }
+
+      .countdown small {
+        font-size: 20px;
+        font-weight: 700;
+        margin-top: 10px;
+      }
+
+      .side {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 18px;
+      }
+
+      .progress {
+        color: var(--muted);
+        font-size: 15px;
+        margin-bottom: 14px;
+      }
+
+      .strip {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .thumb {
+        aspect-ratio: 4 / 3;
+        background: #e4e7ec;
+        border-radius: 6px;
+        object-fit: cover;
+        width: 100%;
+      }
+
+      .photo-grid {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      }
+
+      .photo {
+        padding: 8px;
+        position: relative;
+      }
+
+      .photo.selected {
+        border-color: var(--green);
+        box-shadow: 0 0 0 3px rgba(18, 128, 92, 0.18);
+      }
+
+      .photo img,
+      .template img,
+      .result img {
+        display: block;
+        width: 100%;
+      }
+
+      .badge {
+        align-items: center;
+        background: var(--green);
+        border-radius: 999px;
+        color: #fff;
+        display: flex;
+        font-weight: 800;
+        height: 34px;
+        justify-content: center;
+        position: absolute;
+        right: 12px;
+        top: 12px;
+        width: 34px;
+      }
+
+      .template {
+        padding: 12px;
+      }
+
+      .template img {
+        background: #fff;
+        border-radius: 6px;
+        max-height: 380px;
+        object-fit: contain;
+      }
+
+      .template strong {
+        display: block;
+        margin-top: 10px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        margin-top: 22px;
+      }
+
+      .primary,
+      .secondary,
+      .danger {
+        border-radius: 8px;
+        color: #fff;
+        font-weight: 800;
+        padding: 13px 18px;
+      }
+
+      .primary {
+        background: var(--blue);
+      }
+
+      .secondary {
+        background: #344054;
+      }
+
+      .danger {
+        background: var(--red);
+      }
+
+      .result {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        margin: 0 auto;
+        max-width: 640px;
+        padding: 16px;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      @media (max-width: 840px) {
+        .shell {
+          padding: 16px;
+        }
+
+        .capture-layout {
+          grid-template-columns: 1fr;
+        }
+
+        .title {
+          font-size: 32px;
+          margin-top: 24px;
+        }
+
+        .preview-wrap {
+          min-height: 48vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <div class="topbar">
+        <div class="brand">TSL Photobooth</div>
+        <button class="secondary" id="restartTop" type="button">Lam lai</button>
+      </div>
+
+      <section class="stage" id="stepChoose">
+        <h1 class="title">Chon loai khung</h1>
+        <p class="subtitle">Khung 2 anh se chup 4 tam, khung 3 anh se chup 5 tam, khung 4 anh se chup 6 tam.</p>
+        <div class="cards" id="frameTypeCards"></div>
+      </section>
+
+      <section class="stage hidden" id="stepCapture">
+        <div class="capture-layout">
+          <div class="preview-wrap">
+            <img alt="Live camera" id="livePreview" src="/api/aquisition/stream.mjpg" />
+            <div class="countdown">
+              <div id="countdownNumber">10</div>
+              <small id="captureStatus">Dang chuan bi</small>
+            </div>
+          </div>
+          <aside class="side">
+            <h2>Dang chup</h2>
+            <div class="progress" id="captureProgress"></div>
+            <div class="strip" id="captureStrip"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="stage hidden" id="stepSelectPhotos">
+        <h1 class="title">Chon anh de gan vao khung</h1>
+        <p class="subtitle" id="selectHint"></p>
+        <div class="photo-grid" id="photoGrid"></div>
+        <div class="actions">
+          <button class="secondary" id="retake" type="button">Chup lai</button>
+          <button class="primary" id="continueToTemplates" type="button" disabled>Chon khung</button>
+        </div>
+      </section>
+
+      <section class="stage hidden" id="stepTemplates">
+        <h1 class="title">Chon mau khung</h1>
+        <p class="subtitle">Anh se duoc gan vao khung theo thu tu da chon.</p>
+        <div class="cards" id="templateGrid"></div>
+      </section>
+
+      <section class="stage hidden" id="stepResult">
+        <h1 class="title">Anh da san sang</h1>
+        <div class="result">
+          <img alt="Final collage" id="resultImage" />
+        </div>
+        <div class="actions">
+          <button class="primary" id="newSession" type="button">Chup bo moi</button>
+          <a class="secondary" id="openGallery" href="/gallery" style="text-decoration: none">Mo gallery</a>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const state = {
+        config: null,
+        selectedType: null,
+        captures: [],
+        selectedCaptureIds: [],
+        timer: null,
+      };
+
+      const $ = (id) => document.getElementById(id);
+
+      function show(stepId) {
+        ["stepChoose", "stepCapture", "stepSelectPhotos", "stepTemplates", "stepResult"].forEach((id) => {
+          $(id).classList.toggle("hidden", id !== stepId);
+        });
+      }
+
+      function reset() {
+        clearInterval(state.timer);
+        state.selectedType = null;
+        state.captures = [];
+        state.selectedCaptureIds = [];
+        $("captureStrip").innerHTML = "";
+        $("photoGrid").innerHTML = "";
+        $("templateGrid").innerHTML = "";
+        $("continueToTemplates").disabled = true;
+        show("stepChoose");
+      }
+
+      function selectedTypeConfig() {
+        return state.config.frame_types.find((item) => item.slot_count === state.selectedType);
+      }
+
+      async function loadConfig() {
+        const res = await fetch("/api/framebooth/config");
+        state.config = await res.json();
+        renderFrameTypes();
+      }
+
+      function renderFrameTypes() {
+        $("frameTypeCards").innerHTML = "";
+        state.config.frame_types.forEach((item) => {
+          const button = document.createElement("button");
+          button.className = "choice";
+          button.innerHTML = `<strong>Khung ${item.slot_count} anh</strong><span>Tu chup ${item.shots_to_take} tam, chon ${item.slot_count} tam dep nhat.</span>`;
+          button.addEventListener("click", () => startCapture(item.slot_count));
+          $("frameTypeCards").appendChild(button);
+        });
+      }
+
+      function startCapture(slotCount) {
+        state.selectedType = slotCount;
+        state.captures = [];
+        state.selectedCaptureIds = [];
+        $("captureStrip").innerHTML = "";
+        show("stepCapture");
+        runAutoCapture();
+      }
+
+      async function runAutoCapture() {
+        const cfg = selectedTypeConfig();
+        for (let shot = 1; shot <= cfg.shots_to_take; shot += 1) {
+          await countdown(cfg.countdown_seconds || state.config.countdown_seconds, shot, cfg.shots_to_take);
+          $("captureStatus").textContent = "Dang chup...";
+          const capture = await postCapture();
+          state.captures.push(capture);
+          appendCaptureThumb(capture, shot);
+        }
+        renderPhotoSelection();
+      }
+
+      function countdown(seconds, shot, total) {
+        return new Promise((resolve) => {
+          let remaining = seconds;
+          $("captureProgress").textContent = `Tam ${shot}/${total}`;
+          $("captureStatus").textContent = "Tu dong chup sau";
+          $("countdownNumber").textContent = remaining;
+          clearInterval(state.timer);
+          state.timer = setInterval(() => {
+            remaining -= 1;
+            $("countdownNumber").textContent = remaining;
+            if (remaining <= 0) {
+              clearInterval(state.timer);
+              resolve();
+            }
+          }, 1000);
+        });
+      }
+
+      async function postCapture() {
+        const res = await fetch("/api/framebooth/capture", { method: "POST" });
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+        return res.json();
+      }
+
+      function appendCaptureThumb(capture, number) {
+        const img = document.createElement("img");
+        img.className = "thumb";
+        img.alt = `Capture ${number}`;
+        img.src = `${capture.preview_url}?v=${Date.now()}`;
+        $("captureStrip").appendChild(img);
+      }
+
+      function renderPhotoSelection() {
+        const cfg = selectedTypeConfig();
+        $("selectHint").textContent = `Chon dung ${cfg.slot_count} anh. Thu tu click se la thu tu gan vao khung.`;
+        $("photoGrid").innerHTML = "";
+        state.captures.forEach((capture, index) => {
+          const card = document.createElement("button");
+          card.className = "photo";
+          card.type = "button";
+          card.dataset.id = capture.id;
+          card.innerHTML = `<img alt="Photo ${index + 1}" src="${capture.preview_url}?v=${Date.now()}" />`;
+          card.addEventListener("click", () => togglePhoto(capture.id));
+          $("photoGrid").appendChild(card);
+        });
+        show("stepSelectPhotos");
+      }
+
+      function togglePhoto(captureId) {
+        const cfg = selectedTypeConfig();
+        const selectedIndex = state.selectedCaptureIds.indexOf(captureId);
+        if (selectedIndex >= 0) {
+          state.selectedCaptureIds.splice(selectedIndex, 1);
+        } else if (state.selectedCaptureIds.length < cfg.slot_count) {
+          state.selectedCaptureIds.push(captureId);
+        }
+        updatePhotoSelection();
+      }
+
+      function updatePhotoSelection() {
+        const cfg = selectedTypeConfig();
+        document.querySelectorAll(".photo").forEach((card) => {
+          card.classList.remove("selected");
+          card.querySelector(".badge")?.remove();
+          const selectedIndex = state.selectedCaptureIds.indexOf(card.dataset.id);
+          if (selectedIndex >= 0) {
+            card.classList.add("selected");
+            const badge = document.createElement("div");
+            badge.className = "badge";
+            badge.textContent = selectedIndex + 1;
+            card.appendChild(badge);
+          }
+        });
+        $("continueToTemplates").disabled = state.selectedCaptureIds.length !== cfg.slot_count;
+      }
+
+      function renderTemplates() {
+        const cfg = selectedTypeConfig();
+        $("templateGrid").innerHTML = "";
+        cfg.templates.forEach((template) => {
+          const button = document.createElement("button");
+          button.className = "template";
+          button.type = "button";
+          button.innerHTML = `<img alt="${template.name}" src="${template.preview_url}" /><strong>${template.name}</strong>`;
+          button.addEventListener("click", () => renderFinal(template.id));
+          $("templateGrid").appendChild(button);
+        });
+        show("stepTemplates");
+      }
+
+      async function renderFinal(templateId) {
+        show("stepResult");
+        $("resultImage").removeAttribute("src");
+        const res = await fetch("/api/framebooth/render", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            template_id: templateId,
+            capture_ids: state.selectedCaptureIds,
+          }),
+        });
+        if (!res.ok) {
+          alert(await res.text());
+          show("stepTemplates");
+          return;
+        }
+        const result = await res.json();
+        $("resultImage").src = `${result.media_url}?v=${Date.now()}`;
+        $("openGallery").href = result.gallery_url;
+      }
+
+      $("continueToTemplates").addEventListener("click", renderTemplates);
+      $("retake").addEventListener("click", () => startCapture(state.selectedType));
+      $("newSession").addEventListener("click", reset);
+      $("restartTop").addEventListener("click", reset);
+
+      loadConfig().catch((error) => {
+        console.error(error);
+        alert("Khong tai duoc cau hinh photobooth.");
+      });
+    </script>
+  </body>
+</html>

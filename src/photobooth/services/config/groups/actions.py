@@ -287,6 +287,67 @@ class MulticameraProcessing(BaseModel):
 t_JOBCONTROL = TypeVar("t_JOBCONTROL")
 t_PROCESSING = TypeVar("t_PROCESSING")
 
+FRAME_DIR = Path(__file__).resolve().parents[3] / "frame"
+
+
+def _collage_jobcontrol() -> MultiImageJobControl:
+    return MultiImageJobControl(
+        ask_approval_each_capture=True,
+        show_individual_captures_in_gallery=False,
+    )
+
+
+def _collage_processing(
+    canvas_width: int,
+    canvas_height: int,
+    frame_file: Path,
+    slots: list[tuple[str, int, int, int, int]],
+) -> CollageProcessing:
+    return CollageProcessing(
+        capture_remove_background=False,
+        capture_fill_background_enable=False,
+        canvas_width=canvas_width,
+        canvas_height=canvas_height,
+        merge_definition=[
+            CollageMergeDefinition(
+                description=description,
+                pos_x=pos_x,
+                pos_y=pos_y,
+                width=width,
+                height=height,
+                rotate=0,
+                image_filter=PluginFilters("original"),
+            )
+            for description, pos_x, pos_y, width, height in slots
+        ],
+        canvas_fill_background_enable=True,
+        canvas_fill_background_color=Color("#ffffff"),
+        canvas_img_front_enable=True,
+        canvas_img_front_file=frame_file,
+        canvas_texts_enable=False,
+    )
+
+
+def _frame_collage_action(
+    name: str,
+    title: str,
+    keycode: str,
+    canvas_width: int,
+    canvas_height: int,
+    frame_file: Path,
+    slots: list[tuple[str, int, int, int, int]],
+) -> "CollageConfigurationSet":
+    return CollageConfigurationSet(
+        name=name,
+        jobcontrol=_collage_jobcontrol(),
+        processing=_collage_processing(canvas_width, canvas_height, frame_file, slots),
+        trigger=Trigger(
+            ui_trigger=UiTrigger(title=title, icon="auto_awesome_mosaic"),
+            gpio_trigger=GpioTrigger(pin="", trigger_on="pressed"),
+            keyboard_trigger=KeyboardTrigger(keycode=keycode),
+        ),
+    )
+
 
 class BaseConfigurationSet(BaseModel, Generic[t_JOBCONTROL, t_PROCESSING]):
     name: str = Field(
@@ -373,66 +434,45 @@ class GroupActions(BaseModel):
 
     collage: list[CollageConfigurationSet] = Field(
         default=[
-            CollageConfigurationSet(
-                jobcontrol=MultiImageJobControl(
-                    ask_approval_each_capture=True,
-                    show_individual_captures_in_gallery=True,
-                ),
-                processing=CollageProcessing(
-                    capture_remove_background=True,
-                    capture_fill_background_enable=True,
-                    capture_fill_background_color=Color("#ffffff"),
-                    canvas_width=1920,
-                    canvas_height=1280,
-                    merge_definition=[
-                        CollageMergeDefinition(
-                            description="left",
-                            pos_x=160,
-                            pos_y=220,
-                            width=510,
-                            height=725,
-                            rotate=0,
-                            image_filter=PluginFilters("FilterPilgram2.earlybird"),
-                        ),
-                        CollageMergeDefinition(
-                            description="middle predefined",
-                            pos_x=705,
-                            pos_y=66,
-                            width=510,
-                            height=725,
-                            rotate=0,
-                            predefined_image=Path("userdata/demoassets/predefined_images/photobooth-collage-predefined-image.png"),
-                            image_filter=PluginFilters("original"),
-                        ),
-                        CollageMergeDefinition(
-                            description="right",
-                            pos_x=1245,
-                            pos_y=220,
-                            width=510,
-                            height=725,
-                            rotate=0,
-                            image_filter=PluginFilters("FilterPilgram2.reyes"),
-                        ),
-                    ],
-                    canvas_img_front_enable=True,
-                    canvas_img_front_file=Path("userdata/demoassets/frames/pixabay-poster-2871536_1920.png"),
-                    canvas_texts_enable=True,
-                    canvas_texts=[
-                        TextsConfig(
-                            text="Have a nice day :)",
-                            pos_x=200,
-                            pos_y=1100,
-                            rotate=1,
-                            color=Color("#333333"),
-                        )
-                    ],
-                ),
-                trigger=Trigger(
-                    ui_trigger=UiTrigger(title="Collage", icon="auto_awesome_mosaic"),
-                    gpio_trigger=GpioTrigger(pin="22"),
-                    keyboard_trigger=KeyboardTrigger(keycode="c"),
-                ),
-            )
+            _frame_collage_action(
+                name="2-photo frame",
+                title="Khung 2 anh",
+                keycode="2",
+                canvas_width=675,
+                canvas_height=1200,
+                frame_file=FRAME_DIR / "frame_2_photos_overlay.png",
+                slots=[
+                    ("top", 145, 78, 384, 512),
+                    ("bottom", 146, 604, 385, 511),
+                ],
+            ),
+            _frame_collage_action(
+                name="3-photo frame",
+                title="Khung 3 anh",
+                keycode="3",
+                canvas_width=736,
+                canvas_height=1308,
+                frame_file=FRAME_DIR / "frame_3_photos_overlay.png",
+                slots=[
+                    ("top", 58, 92, 622, 407),
+                    ("middle", 60, 541, 613, 414),
+                    ("bottom", 57, 998, 620, 310),
+                ],
+            ),
+            _frame_collage_action(
+                name="4-photo frame",
+                title="Khung 4 anh",
+                keycode="4",
+                canvas_width=736,
+                canvas_height=920,
+                frame_file=FRAME_DIR / "frame_4_photos_overlay.png",
+                slots=[
+                    ("top left", 31, 28, 323, 404),
+                    ("top right", 384, 28, 323, 404),
+                    ("bottom left", 31, 474, 323, 405),
+                    ("bottom right", 384, 474, 323, 405),
+                ],
+            ),
         ],
         description="Capture collages consist of one or more still images.",
     )

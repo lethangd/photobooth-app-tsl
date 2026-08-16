@@ -14,6 +14,7 @@
 
 # python files
 __pycache__
+.venv/
 
 # env to preconfigure photobooth
 .env
