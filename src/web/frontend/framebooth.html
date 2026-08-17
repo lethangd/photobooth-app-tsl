@@ -3,16 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Photobooth Frame Flow</title>
+    <title>TSL Photobooth Kiosk</title>
     <style>
       :root {
-        --ink: #101828;
-        --muted: #667085;
-        --line: #d0d5dd;
-        --panel: rgba(255, 255, 255, 0.9);
-        --blue: #196cb0;
-        --green: #12805c;
-        --red: #b42318;
+        --ink: #111318;
+        --paper: #fbfcff;
+        --mist: #edf6f9;
+        --teal: #00a99d;
+        --teal-dark: #057a75;
+        --coral: #ff4d6d;
+        --gold: #ffca3a;
+        --violet: #7048e8;
+        --blue: #1267b3;
+        --line: rgba(17, 19, 24, 0.12);
+        --shadow: 0 24px 60px rgba(17, 19, 24, 0.16);
+        --soft-shadow: 0 16px 40px rgba(17, 19, 24, 0.1);
       }
 
       * {
@@ -21,15 +26,30 @@
 
       html,
       body {
+        height: 100%;
         margin: 0;
-        min-height: 100%;
-        background: #f2f4f7;
+        overflow: hidden;
+      }
+
+      body {
+        background:
+          linear-gradient(125deg, rgba(255, 77, 109, 0.18), transparent 36%),
+          linear-gradient(235deg, rgba(0, 169, 157, 0.2), transparent 38%),
+          linear-gradient(180deg, #fff 0%, #eef8fb 48%, #fff7e0 100%);
         color: var(--ink);
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        touch-action: manipulation;
+      }
+
+      button,
+      a {
+        -webkit-tap-highlight-color: transparent;
       }
 
       button {
         border: 0;
+        color: inherit;
         cursor: pointer;
         font: inherit;
       }
@@ -39,517 +59,1739 @@
         opacity: 0.45;
       }
 
-      .shell {
-        min-height: 100vh;
-        padding: 24px;
+      .app {
+        height: 100%;
+        isolation: isolate;
+        overflow: hidden;
+        position: relative;
       }
 
       .topbar {
         align-items: center;
         display: flex;
+        gap: 16px;
         justify-content: space-between;
-        margin: 0 auto 20px;
-        max-width: 1180px;
+        left: 0;
+        padding: 22px clamp(18px, 3vw, 42px);
+        pointer-events: none;
+        position: fixed;
+        right: 0;
+        top: 0;
+        z-index: 20;
       }
 
       .brand {
-        font-size: 22px;
+        align-items: center;
+        display: flex;
+        gap: 12px;
+        font-size: clamp(19px, 2vw, 26px);
+        font-weight: 900;
+        letter-spacing: 0;
+      }
+
+      .brand-mark {
+        align-items: center;
+        background: var(--ink);
+        border-radius: 8px;
+        color: #fff;
+        display: inline-flex;
+        height: 42px;
+        justify-content: center;
+        width: 42px;
+      }
+
+      .top-actions {
+        align-items: center;
+        display: flex;
+        gap: 10px;
+        pointer-events: auto;
+      }
+
+      .pill {
+        align-items: center;
+        backdrop-filter: blur(20px);
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 999px;
+        box-shadow: var(--soft-shadow);
+        display: inline-flex;
         font-weight: 800;
+        min-height: 44px;
+        padding: 0 18px;
       }
 
-      .stage {
-        margin: 0 auto;
-        max-width: 1180px;
+      .restart {
+        background: var(--ink);
+        color: #fff;
       }
 
-      .title {
-        font-size: 42px;
-        font-weight: 850;
-        line-height: 1.05;
-        margin: 44px 0 12px;
-        text-align: center;
-      }
-
-      .subtitle {
-        color: var(--muted);
-        font-size: 18px;
-        margin: 0 auto 34px;
-        max-width: 780px;
-        text-align: center;
-      }
-
-      .cards {
+      .screen {
         display: grid;
-        gap: 18px;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        height: 100%;
+        inset: 0;
+        opacity: 0;
+        padding: 92px clamp(18px, 3vw, 42px) 34px;
+        pointer-events: none;
+        position: absolute;
+        transform: translateY(18px) scale(0.99);
+        transition:
+          opacity 280ms ease,
+          transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
+        width: 100%;
       }
 
-      .choice,
-      .template,
-      .photo {
-        background: var(--panel);
+      .screen.active {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
+      }
+
+      .screen-center {
+        align-content: center;
+        justify-items: center;
+      }
+
+      #screenIdle {
+        align-content: start;
+        padding-top: clamp(132px, 12vh, 220px);
+      }
+
+      .kicker {
+        color: var(--teal-dark);
+        font-size: clamp(13px, 1.5vw, 18px);
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        margin: 0 0 10px;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: clamp(42px, 7.4vw, 92px);
+        font-weight: 950;
+        letter-spacing: 0;
+        line-height: 0.95;
+        max-width: 1020px;
+        text-align: center;
+      }
+
+      h2 {
+        font-size: clamp(26px, 3.6vw, 46px);
+        font-weight: 950;
+        letter-spacing: 0;
+        line-height: 1;
+      }
+
+      .sub {
+        color: rgba(17, 19, 24, 0.68);
+        font-size: clamp(17px, 2vw, 24px);
+        font-weight: 650;
+        line-height: 1.35;
+        margin-top: 18px;
+        max-width: 760px;
+        text-align: center;
+      }
+
+      .hero-strip {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin: 34px auto 28px;
+        max-width: 760px;
+        width: min(92vw, 760px);
+      }
+
+      .hero-frame {
+        aspect-ratio: 3 / 4;
+        background: #fff;
         border: 1px solid var(--line);
         border-radius: 8px;
-        box-shadow: 0 18px 40px rgba(16, 24, 40, 0.08);
+        box-shadow: var(--soft-shadow);
+        overflow: hidden;
+        transform: rotate(var(--tilt));
+      }
+
+      .hero-frame img {
+        height: 100%;
+        object-fit: contain;
+        padding: 10px;
+        width: 100%;
+      }
+
+      .cta {
+        animation: pulse 1.9s ease-in-out infinite;
+        background: var(--coral);
+        border-radius: 999px;
+        box-shadow: 0 18px 42px rgba(255, 77, 109, 0.36);
+        color: #fff;
+        font-size: clamp(20px, 2.3vw, 30px);
+        font-weight: 950;
+        min-height: 68px;
+        padding: 0 34px;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+
+        50% {
+          transform: scale(1.045);
+        }
+      }
+
+      .package-grid {
+        align-self: start;
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin: 0 auto;
+        max-width: 1120px;
+        width: 100%;
+      }
+
+      #screenPackage .selection-layout {
+        align-content: start;
+        gap: clamp(28px, 4vh, 72px);
+        grid-template-rows: auto auto;
+      }
+
+      .package-card,
+      .photo-card,
+      .filter-card,
+      .frame-card {
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid rgba(17, 19, 24, 0.12);
+        border-radius: 8px;
+        box-shadow: var(--soft-shadow);
         overflow: hidden;
       }
 
-      .choice {
-        padding: 28px;
+      .package-card {
+        display: grid;
+        min-height: 560px;
+        padding: 18px;
+        text-align: left;
+        transition:
+          border-color 180ms ease,
+          box-shadow 180ms ease,
+          transform 180ms ease;
+      }
+
+      .package-card:hover,
+      .package-card:focus-visible,
+      .frame-card:hover,
+      .photo-card:hover,
+      .filter-card:hover {
+        border-color: var(--coral);
+        box-shadow: var(--shadow);
+        transform: translateY(-4px);
+      }
+
+      .package-image {
+        align-items: center;
+        aspect-ratio: 3 / 4;
+        background: linear-gradient(180deg, #fff, var(--mist));
+        border-radius: 6px;
+        display: flex;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      .package-image img {
+        height: 100%;
+        object-fit: contain;
+        padding: 12px;
+        width: 100%;
+      }
+
+      .package-body {
+        align-self: end;
+        display: grid;
+        gap: 10px;
+        padding-top: 18px;
+      }
+
+      .package-title {
+        font-size: clamp(28px, 4vw, 48px);
+        font-weight: 950;
+        letter-spacing: 0;
+      }
+
+      .price {
+        color: var(--coral);
+        font-size: clamp(22px, 2.5vw, 34px);
+        font-weight: 950;
+      }
+
+      .meta-row {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .tag {
+        background: var(--mist);
+        border: 1px solid rgba(0, 169, 157, 0.2);
+        border-radius: 999px;
+        color: var(--teal-dark);
+        font-size: 14px;
+        font-weight: 900;
+        padding: 8px 12px;
+      }
+
+      .payment-layout,
+      .download-layout {
+        align-items: center;
+        display: grid;
+        gap: clamp(22px, 4vw, 54px);
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 430px);
+        margin: clamp(96px, 14vh, 190px) auto auto;
+        max-width: 1120px;
+        width: 100%;
+      }
+
+      .qr-panel {
+        align-items: center;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        display: grid;
+        justify-items: center;
+        padding: clamp(18px, 3vw, 34px);
+      }
+
+      .qr {
+        aspect-ratio: 1;
+        background: #fff;
+        border: 12px solid #fff;
+        box-shadow: inset 0 0 0 1px var(--line);
+        image-rendering: pixelated;
+        width: min(70vw, 340px);
+      }
+
+      .status-line {
+        color: rgba(17, 19, 24, 0.62);
+        font-size: clamp(16px, 1.8vw, 22px);
+        font-weight: 800;
+        margin-top: 18px;
+        text-align: center;
+      }
+
+      .meter {
+        background: rgba(17, 19, 24, 0.1);
+        border-radius: 999px;
+        height: 10px;
+        margin-top: 18px;
+        overflow: hidden;
+        width: min(100%, 420px);
+      }
+
+      .meter span {
+        background: linear-gradient(90deg, var(--teal), var(--gold), var(--coral));
+        display: block;
+        height: 100%;
+        transform-origin: left;
+      }
+
+      .live-stage {
+        background: #050505;
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        height: min(72vh, 860px);
+        overflow: hidden;
+        position: relative;
+        width: min(100%, 1040px);
+      }
+
+      .live-stage img,
+      .final-image,
+      .photo-card img,
+      .frame-card img,
+      .selected-preview img {
+        display: block;
+        height: 100%;
+        object-fit: cover;
+        width: 100%;
+      }
+
+      .live-stage::after {
+        border: 2px solid rgba(255, 255, 255, 0.72);
+        border-radius: 999px 999px 80px 80px;
+        content: "";
+        height: 58%;
+        left: 50%;
+        opacity: 0.62;
+        position: absolute;
+        top: 14%;
+        transform: translateX(-50%);
+        width: 44%;
+      }
+
+      .live-copy {
+        background: linear-gradient(0deg, rgba(0, 0, 0, 0.76), rgba(0, 0, 0, 0));
+        bottom: 0;
+        color: #fff;
+        left: 0;
+        padding: 120px clamp(20px, 4vw, 56px) clamp(22px, 4vw, 42px);
+        position: absolute;
+        right: 0;
+        z-index: 2;
+      }
+
+      .live-copy h1,
+      .live-copy .sub {
+        color: #fff;
+        margin-left: 0;
         text-align: left;
       }
 
-      .choice strong {
-        display: block;
-        font-size: 28px;
-        margin-bottom: 8px;
-      }
-
-      .choice span {
-        color: var(--muted);
-        display: block;
-      }
-
-      .choice:hover,
-      .template:hover,
-      .photo:hover {
-        border-color: var(--blue);
-      }
-
-      .capture-layout {
+      .capture-shell {
+        align-items: stretch;
         display: grid;
-        gap: 20px;
-        grid-template-columns: minmax(0, 1fr) 320px;
+        gap: 18px;
+        grid-template-columns: minmax(0, 1fr) 300px;
+        min-height: 0;
       }
 
-      .preview-wrap {
+      .capture-main {
         background: #000;
         border-radius: 8px;
-        min-height: 62vh;
+        box-shadow: var(--shadow);
+        min-height: 0;
         overflow: hidden;
         position: relative;
       }
 
-      .preview-wrap img {
+      .capture-main img {
         height: 100%;
-        inset: 0;
         object-fit: cover;
-        position: absolute;
         width: 100%;
       }
 
-      .countdown {
+      .countdown-wrap {
         align-items: center;
-        background: rgba(0, 0, 0, 0.42);
         color: #fff;
-        display: flex;
-        flex-direction: column;
-        font-size: 110px;
-        font-weight: 900;
+        display: grid;
         inset: 0;
-        justify-content: center;
+        justify-items: center;
+        pointer-events: none;
         position: absolute;
-        text-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
       }
 
-      .countdown small {
-        font-size: 20px;
-        font-weight: 700;
-        margin-top: 10px;
+      .countdown-number {
+        animation: number-pop 1s ease infinite;
+        font-size: clamp(110px, 22vw, 260px);
+        font-weight: 1000;
+        letter-spacing: 0;
+        line-height: 0.8;
+        text-shadow: 0 18px 58px rgba(0, 0, 0, 0.48);
       }
 
-      .side {
-        background: var(--panel);
+      @keyframes number-pop {
+        0% {
+          opacity: 0;
+          transform: scale(0.72);
+        }
+
+        18%,
+        72% {
+          opacity: 1;
+          transform: scale(1);
+        }
+
+        100% {
+          opacity: 0.52;
+          transform: scale(1.08);
+        }
+      }
+
+      .shot-label {
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 999px;
+        color: var(--ink);
+        font-size: clamp(17px, 1.8vw, 24px);
+        font-weight: 950;
+        left: 24px;
+        padding: 12px 18px;
+        position: absolute;
+        top: 24px;
+        z-index: 4;
+      }
+
+      .flash {
+        background: #fff;
+        inset: 0;
+        opacity: 0;
+        pointer-events: none;
+        position: absolute;
+        z-index: 5;
+      }
+
+      .flash.on {
+        animation: flash 540ms ease;
+      }
+
+      @keyframes flash {
+        0% {
+          opacity: 0;
+        }
+
+        24% {
+          opacity: 0.95;
+        }
+
+        100% {
+          opacity: 0;
+        }
+      }
+
+      .capture-side {
+        background: rgba(255, 255, 255, 0.86);
         border: 1px solid var(--line);
         border-radius: 8px;
+        box-shadow: var(--soft-shadow);
+        display: grid;
+        grid-template-rows: auto 1fr;
+        min-height: 0;
         padding: 18px;
       }
 
-      .progress {
-        color: var(--muted);
-        font-size: 15px;
-        margin-bottom: 14px;
-      }
-
-      .strip {
+      .shot-strip {
+        align-content: start;
         display: grid;
         gap: 10px;
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        min-height: 0;
+        overflow: auto;
+        padding-top: 18px;
       }
 
-      .thumb {
+      .shot-thumb {
         aspect-ratio: 4 / 3;
-        background: #e4e7ec;
+        background: var(--mist);
         border-radius: 6px;
         object-fit: cover;
         width: 100%;
+      }
+
+      .selection-layout {
+        display: grid;
+        gap: 18px;
+        grid-template-rows: auto 1fr auto;
+        min-height: 0;
+      }
+
+      .screen-head {
+        align-items: end;
+        display: flex;
+        gap: 18px;
+        justify-content: space-between;
+        margin: 0 auto;
+        max-width: 1180px;
+        width: 100%;
+      }
+
+      .screen-head h1 {
+        font-size: clamp(34px, 5vw, 62px);
+        text-align: left;
+      }
+
+      .counter {
+        align-items: center;
+        background: var(--ink);
+        border-radius: 8px;
+        color: #fff;
+        display: inline-flex;
+        font-size: clamp(20px, 2vw, 28px);
+        font-weight: 950;
+        justify-content: center;
+        min-height: 58px;
+        min-width: 138px;
+        padding: 0 18px;
       }
 
       .photo-grid {
         display: grid;
         gap: 14px;
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      }
-
-      .photo {
-        padding: 8px;
-        position: relative;
-      }
-
-      .photo.selected {
-        border-color: var(--green);
-        box-shadow: 0 0 0 3px rgba(18, 128, 92, 0.18);
-      }
-
-      .photo img,
-      .template img,
-      .result img {
-        display: block;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        margin: 0 auto;
+        max-width: 1180px;
+        min-height: 0;
+        overflow: auto;
+        padding: 6px;
         width: 100%;
       }
 
-      .badge {
+      .photo-card {
+        aspect-ratio: 4 / 3;
+        padding: 0;
+        position: relative;
+        transition:
+          transform 180ms ease,
+          box-shadow 180ms ease,
+          border-color 180ms ease;
+      }
+
+      .photo-card.selected {
+        border-color: var(--teal);
+        box-shadow: 0 0 0 5px rgba(0, 169, 157, 0.18), var(--soft-shadow);
+      }
+
+      .select-badge {
         align-items: center;
-        background: var(--green);
+        background: var(--teal);
+        border: 3px solid #fff;
         border-radius: 999px;
         color: #fff;
         display: flex;
-        font-weight: 800;
-        height: 34px;
+        font-size: 18px;
+        font-weight: 950;
+        height: 44px;
         justify-content: center;
         position: absolute;
         right: 12px;
         top: 12px;
-        width: 34px;
+        width: 44px;
       }
 
-      .template {
-        padding: 12px;
-      }
-
-      .template img {
-        background: #fff;
-        border-radius: 6px;
-        max-height: 380px;
-        object-fit: contain;
-      }
-
-      .template strong {
-        display: block;
-        margin-top: 10px;
-      }
-
-      .actions {
+      .toolbar {
+        align-items: center;
         display: flex;
-        gap: 10px;
+        flex-wrap: wrap;
+        gap: 12px;
         justify-content: center;
-        margin-top: 22px;
+        margin: 0 auto;
+        max-width: 1180px;
+        width: 100%;
       }
 
       .primary,
       .secondary,
-      .danger {
+      .ghost {
+        align-items: center;
         border-radius: 8px;
-        color: #fff;
-        font-weight: 800;
-        padding: 13px 18px;
+        display: inline-flex;
+        font-size: clamp(17px, 1.8vw, 22px);
+        font-weight: 950;
+        justify-content: center;
+        min-height: 58px;
+        min-width: 154px;
+        padding: 0 22px;
+        text-decoration: none;
       }
 
       .primary {
-        background: var(--blue);
+        background: var(--coral);
+        box-shadow: 0 14px 32px rgba(255, 77, 109, 0.3);
+        color: #fff;
       }
 
       .secondary {
-        background: #344054;
+        background: var(--ink);
+        color: #fff;
       }
 
-      .danger {
-        background: var(--red);
+      .ghost {
+        background: rgba(255, 255, 255, 0.74);
+        border: 1px solid var(--line);
+        color: var(--ink);
       }
 
-      .result {
-        background: var(--panel);
+      .filter-layout {
+        align-content: center;
+        display: grid;
+        gap: 24px;
+        margin: auto;
+        max-width: 1180px;
+        min-height: 0;
+        width: 100%;
+      }
+
+      .selected-strip {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      }
+
+      .selected-preview {
+        aspect-ratio: 4 / 3;
+        border-radius: 8px;
+        box-shadow: var(--soft-shadow);
+        overflow: hidden;
+      }
+
+      .filter-row {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      }
+
+      .filter-card {
+        display: grid;
+        gap: 10px;
+        padding: 10px;
+        text-align: left;
+      }
+
+      .filter-card.selected {
+        border-color: var(--violet);
+        box-shadow: 0 0 0 5px rgba(112, 72, 232, 0.14), var(--soft-shadow);
+      }
+
+      .filter-thumb {
+        aspect-ratio: 4 / 3;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+
+      .filter-name,
+      .frame-name {
+        font-size: 17px;
+        font-weight: 950;
+      }
+
+      .frame-layout {
+        display: grid;
+        gap: 18px;
+        grid-template-rows: auto 1fr auto;
+        min-height: 0;
+      }
+
+      .frame-grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        margin: 0 auto;
+        max-width: 1180px;
+        min-height: 0;
+        overflow: auto;
+        padding: 6px;
+        width: 100%;
+      }
+
+      .frame-card {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        transition:
+          transform 180ms ease,
+          box-shadow 180ms ease,
+          border-color 180ms ease;
+      }
+
+      .frame-preview {
+        align-items: center;
+        background: linear-gradient(180deg, #fff, var(--mist));
+        border-radius: 6px;
+        display: flex;
+        justify-content: center;
+        min-height: 300px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .frame-card img {
+        height: auto;
+        max-height: 520px;
+        object-fit: contain;
+      }
+
+      .skeleton {
+        animation: shimmer 1.2s linear infinite;
+        background: linear-gradient(90deg, #eef1f4 0%, #fff 42%, #eef1f4 84%);
+        background-size: 220% 100%;
+        inset: 0;
+        position: absolute;
+      }
+
+      @keyframes shimmer {
+        to {
+          background-position: -220% 0;
+        }
+      }
+
+      .final-layout {
+        align-items: center;
+        display: grid;
+        gap: clamp(18px, 4vw, 48px);
+        grid-template-columns: minmax(260px, 520px) minmax(0, 1fr);
+        margin: auto;
+        max-width: 1120px;
+        width: 100%;
+      }
+
+      .final-preview {
+        align-items: center;
+        background: #fff;
         border: 1px solid var(--line);
         border-radius: 8px;
-        margin: 0 auto;
-        max-width: 640px;
-        padding: 16px;
+        box-shadow: var(--shadow);
+        display: flex;
+        justify-content: center;
+        min-height: 0;
+        padding: 12px;
+      }
+
+      .final-image {
+        border-radius: 6px;
+        height: auto;
+        max-height: 78vh;
+        object-fit: contain;
+      }
+
+      .printing-layout {
+        align-items: center;
+        display: grid;
+        justify-items: center;
+        margin: auto;
+        max-width: 900px;
+        width: 100%;
+      }
+
+      .print-visual {
+        background: var(--ink);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        height: 390px;
+        max-width: 680px;
+        overflow: hidden;
+        position: relative;
+        width: 100%;
+      }
+
+      .print-slot {
+        background: #080a0f;
+        border-bottom: 8px solid #2b2f3a;
+        height: 86px;
+      }
+
+      .print-photo {
+        animation: print-slide 3s ease-in-out forwards;
+        background: #fff;
+        border-radius: 0 0 6px 6px;
+        left: 50%;
+        max-height: 300px;
+        object-fit: contain;
+        padding: 8px;
+        position: absolute;
+        top: 38px;
+        transform: translate(-50%, -96%);
+        width: min(58%, 340px);
+      }
+
+      @keyframes print-slide {
+        to {
+          transform: translate(-50%, 24%);
+        }
+      }
+
+      .timeout-banner {
+        background: var(--gold);
+        border: 1px solid rgba(17, 19, 24, 0.12);
+        border-radius: 8px;
+        bottom: 24px;
+        box-shadow: var(--shadow);
+        display: none;
+        font-size: 18px;
+        font-weight: 950;
+        left: 50%;
+        padding: 14px 18px;
+        position: fixed;
+        transform: translateX(-50%);
+        z-index: 50;
+      }
+
+      .timeout-banner.show {
+        display: block;
+      }
+
+      .error-panel {
+        align-items: center;
+        background: rgba(17, 19, 24, 0.66);
+        display: none;
+        inset: 0;
+        justify-content: center;
+        padding: 24px;
+        position: fixed;
+        z-index: 80;
+      }
+
+      .error-panel.show {
+        display: flex;
+      }
+
+      .error-box {
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        max-width: 560px;
+        padding: 28px;
+        width: 100%;
+      }
+
+      .error-box p {
+        color: rgba(17, 19, 24, 0.68);
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1.45;
+        margin: 12px 0 20px;
       }
 
       .hidden {
-        display: none;
+        display: none !important;
       }
 
-      @media (max-width: 840px) {
-        .shell {
-          padding: 16px;
+      @media (max-width: 900px) {
+        body {
+          overflow: auto;
         }
 
-        .capture-layout {
+        .app {
+          min-height: 100%;
+          overflow: visible;
+        }
+
+        .screen {
+          min-height: 100vh;
+          overflow: auto;
+          position: absolute;
+        }
+
+        .package-grid,
+        .payment-layout,
+        .download-layout,
+        .capture-shell,
+        .final-layout {
           grid-template-columns: 1fr;
         }
 
-        .title {
-          font-size: 32px;
-          margin-top: 24px;
+        .package-card {
+          min-height: auto;
         }
 
-        .preview-wrap {
-          min-height: 48vh;
+        .capture-side {
+          min-height: 210px;
+        }
+
+        .screen-head {
+          align-items: start;
+          flex-direction: column;
+        }
+
+        .live-stage {
+          height: 68vh;
         }
       }
     </style>
   </head>
-  <body>
-    <main class="shell">
-      <div class="topbar">
-        <div class="brand">TSL Photobooth</div>
-        <button class="secondary" id="restartTop" type="button">Lam lai</button>
-      </div>
+  <body data-screen="IDLE">
+    <main class="app">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">TSL</span><span>Photobooth</span></div>
+        <div class="top-actions">
+          <span class="pill" id="sessionBadge">Demo MVP</span>
+          <button class="pill restart hidden" id="restartTop" type="button">Làm lại</button>
+        </div>
+      </header>
 
-      <section class="stage" id="stepChoose">
-        <h1 class="title">Chon loai khung</h1>
-        <p class="subtitle">Khung 2 anh se chup 4 tam, khung 3 anh se chup 5 tam, khung 4 anh se chup 6 tam.</p>
-        <div class="cards" id="frameTypeCards"></div>
+      <section class="screen screen-center active" id="screenIdle" data-state="IDLE">
+        <p class="kicker">Self-service kiosk</p>
+        <h1>Lưu khoảnh khắc trong một tấm ảnh thật xịn</h1>
+        <p class="sub">Chọn gói, quét QR, tạo dáng và nhận ảnh ghép ngay trên máy.</p>
+        <div class="hero-strip" id="heroStrip"></div>
+        <button class="cta" id="startButton" type="button">Chạm để bắt đầu</button>
       </section>
 
-      <section class="stage hidden" id="stepCapture">
-        <div class="capture-layout">
-          <div class="preview-wrap">
-            <img alt="Live camera" id="livePreview" src="/api/aquisition/stream.mjpg" />
-            <div class="countdown">
-              <div id="countdownNumber">10</div>
-              <small id="captureStatus">Dang chuan bi</small>
+      <section class="screen" id="screenPackage" data-state="PACKAGE_SELECT">
+        <div class="selection-layout">
+          <div class="screen-head">
+            <div>
+              <p class="kicker">Bước 1</p>
+              <h1>Chọn số ảnh trong khung</h1>
             </div>
           </div>
-          <aside class="side">
-            <h2>Dang chup</h2>
-            <div class="progress" id="captureProgress"></div>
-            <div class="strip" id="captureStrip"></div>
+          <div class="package-grid" id="packageGrid"></div>
+        </div>
+      </section>
+
+      <section class="screen" id="screenPayment" data-state="PAYMENT">
+        <div class="payment-layout">
+          <div>
+            <p class="kicker">Thanh toán mock</p>
+            <h1 id="paymentTitle">Quét QR để tiếp tục</h1>
+            <p class="sub" id="paymentText"></p>
+            <div class="meter"><span id="paymentMeter"></span></div>
+          </div>
+          <div class="qr-panel">
+            <canvas class="qr" id="paymentQr" width="33" height="33"></canvas>
+            <p class="status-line" id="paymentStatus">Đang xác nhận...</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen screen-center" id="screenReady" data-state="GET_READY">
+        <div class="live-stage">
+          <img alt="Live camera" src="/api/aquisition/stream.mjpg" />
+          <div class="live-copy">
+            <p class="kicker">Chuẩn bị</p>
+            <h1 id="readyTitle">Vào vị trí nhé</h1>
+            <p class="sub" id="readyText"></p>
+            <div class="toolbar" style="justify-content: flex-start; margin-top: 22px">
+              <button class="primary" id="startNow" type="button">Bắt đầu ngay</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="screenCapture" data-state="CAPTURING">
+        <div class="capture-shell">
+          <div class="capture-main">
+            <img alt="Live camera" src="/api/aquisition/stream.mjpg" />
+            <div class="shot-label" id="shotLabel">Kiểu 1/4</div>
+            <div class="countdown-wrap">
+              <div class="countdown-number" id="countdownNumber">3</div>
+            </div>
+            <div class="flash" id="flash"></div>
+          </div>
+          <aside class="capture-side">
+            <div>
+              <p class="kicker">Đang chụp</p>
+              <h2 id="captureTitle">Tự động</h2>
+              <p class="status-line" id="captureStatus" style="text-align: left">Không cần bấm nút.</p>
+            </div>
+            <div class="shot-strip" id="shotStrip"></div>
           </aside>
         </div>
       </section>
 
-      <section class="stage hidden" id="stepSelectPhotos">
-        <h1 class="title">Chon anh de gan vao khung</h1>
-        <p class="subtitle" id="selectHint"></p>
-        <div class="photo-grid" id="photoGrid"></div>
-        <div class="actions">
-          <button class="secondary" id="retake" type="button">Chup lai</button>
-          <button class="primary" id="continueToTemplates" type="button" disabled>Chon khung</button>
+      <section class="screen" id="screenPhotoSelect" data-state="PHOTO_SELECT">
+        <div class="selection-layout">
+          <div class="screen-head">
+            <div>
+              <p class="kicker">Chọn ảnh</p>
+              <h1>Giữ lại ảnh ưng ý</h1>
+            </div>
+            <div class="counter" id="selectionCounter">0/2</div>
+          </div>
+          <div class="photo-grid" id="photoGrid"></div>
+          <div class="toolbar">
+            <button class="ghost" id="retakeButton" type="button">Chụp lại</button>
+            <button class="primary" id="photosNextButton" type="button" disabled>Tiếp tục</button>
+          </div>
         </div>
       </section>
 
-      <section class="stage hidden" id="stepTemplates">
-        <h1 class="title">Chon mau khung</h1>
-        <p class="subtitle">Anh se duoc gan vao khung theo thu tu da chon.</p>
-        <div class="cards" id="templateGrid"></div>
+      <section class="screen" id="screenFilter" data-state="FILTER_SELECT">
+        <div class="filter-layout">
+          <div class="screen-head">
+            <div>
+              <p class="kicker">Bộ lọc</p>
+              <h1>Chọn màu ảnh</h1>
+            </div>
+          </div>
+          <div class="selected-strip" id="selectedStrip"></div>
+          <div class="filter-row" id="filterRow"></div>
+          <div class="toolbar">
+            <button class="ghost" id="backToPhotos" type="button">Đổi ảnh</button>
+            <button class="primary" id="filterNextButton" type="button">Chọn khung</button>
+          </div>
+        </div>
       </section>
 
-      <section class="stage hidden" id="stepResult">
-        <h1 class="title">Anh da san sang</h1>
-        <div class="result">
-          <img alt="Final collage" id="resultImage" />
+      <section class="screen" id="screenFrame" data-state="FRAME_SELECT">
+        <div class="frame-layout">
+          <div class="screen-head">
+            <div>
+              <p class="kicker">Khung ảnh</p>
+              <h1>Chọn theme cuối</h1>
+            </div>
+          </div>
+          <div class="frame-grid" id="frameGrid"></div>
+          <div class="toolbar">
+            <button class="ghost" id="backToFilter" type="button">Đổi màu</button>
+          </div>
         </div>
-        <div class="actions">
-          <button class="primary" id="newSession" type="button">Chup bo moi</button>
-          <a class="secondary" id="openGallery" href="/gallery" style="text-decoration: none">Mo gallery</a>
+      </section>
+
+      <section class="screen" id="screenFinal" data-state="FINAL_PREVIEW">
+        <div class="final-layout">
+          <div class="final-preview">
+            <img class="final-image" id="finalPreviewImage" alt="Final preview" />
+          </div>
+          <div>
+            <p class="kicker">Xem trước</p>
+            <h1>Ảnh đã sẵn sàng</h1>
+            <p class="sub" style="text-align: left">Kiểm tra lần cuối trước khi in mock.</p>
+            <div class="toolbar" style="justify-content: flex-start; margin-top: 24px">
+              <button class="primary" id="printButton" type="button">In ngay</button>
+              <button class="ghost" id="editFrameButton" type="button">Đổi khung</button>
+            </div>
+          </div>
         </div>
+      </section>
+
+      <section class="screen screen-center" id="screenPrinting" data-state="PRINTING">
+        <div class="printing-layout">
+          <p class="kicker">Đang in</p>
+          <h1>Ảnh đang ra lò</h1>
+          <p class="sub">Vui lòng chờ trong giây lát.</p>
+          <div class="print-visual" style="margin-top: 28px">
+            <div class="print-slot"></div>
+            <img class="print-photo" id="printingImage" alt="Printing preview" />
+          </div>
+          <div class="meter" style="width: min(100%, 620px)"><span id="printingMeter"></span></div>
+        </div>
+      </section>
+
+      <section class="screen" id="screenDownload" data-state="QR_DOWNLOAD">
+        <div class="download-layout">
+          <div>
+            <p class="kicker">File số</p>
+            <h1>Quét QR để mở ảnh</h1>
+            <p class="sub" style="text-align: left">Link demo mở ảnh final trong gallery local.</p>
+            <div class="toolbar" style="justify-content: flex-start; margin-top: 24px">
+              <a class="primary" id="galleryLink" href="/gallery">Mở gallery</a>
+              <button class="ghost" id="finishButton" type="button">Hoàn tất</button>
+            </div>
+          </div>
+          <div class="qr-panel">
+            <canvas class="qr" id="downloadQr" width="33" height="33"></canvas>
+            <p class="status-line" id="downloadStatus">Đang giữ QR...</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen screen-center" id="screenThankYou" data-state="THANK_YOU">
+        <p class="kicker">Cảm ơn</p>
+        <h1>Hẹn gặp lại ở bộ ảnh tiếp theo</h1>
+        <p class="sub">Phiên mới sẽ sẵn sàng ngay.</p>
       </section>
     </main>
 
+    <div class="timeout-banner" id="timeoutBanner"></div>
+
+    <div class="error-panel" id="errorPanel">
+      <div class="error-box">
+        <p class="kicker">Có lỗi</p>
+        <h2 id="errorTitle">Chưa thể tiếp tục</h2>
+        <p id="errorText"></p>
+        <div class="toolbar" style="justify-content: flex-start">
+          <button class="primary" id="errorRetry" type="button">Thử lại</button>
+          <button class="ghost" id="errorReset" type="button">Làm lại</button>
+        </div>
+      </div>
+    </div>
+
     <script>
+      const screens = {
+        IDLE: "screenIdle",
+        PACKAGE_SELECT: "screenPackage",
+        PAYMENT: "screenPayment",
+        GET_READY: "screenReady",
+        CAPTURING: "screenCapture",
+        PHOTO_SELECT: "screenPhotoSelect",
+        FILTER_SELECT: "screenFilter",
+        FRAME_SELECT: "screenFrame",
+        FINAL_PREVIEW: "screenFinal",
+        PRINTING: "screenPrinting",
+        QR_DOWNLOAD: "screenDownload",
+        THANK_YOU: "screenThankYou",
+      };
+
       const state = {
         config: null,
-        selectedType: null,
+        screen: "IDLE",
+        sessionId: "",
+        selectedPackage: null,
         captures: [],
         selectedCaptureIds: [],
-        timer: null,
+        filterId: "natural",
+        selectedTemplateId: "",
+        finalPreviewUrl: "",
+        finalResult: null,
+        timers: [],
+        errorRetry: null,
       };
 
       const $ = (id) => document.getElementById(id);
+      const money = (value) => `${new Intl.NumberFormat("vi-VN").format(value)}đ`;
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-      function show(stepId) {
-        ["stepChoose", "stepCapture", "stepSelectPhotos", "stepTemplates", "stepResult"].forEach((id) => {
-          $(id).classList.toggle("hidden", id !== stepId);
-        });
+      function rememberTimer(timer) {
+        state.timers.push(timer);
+        return timer;
       }
 
-      function reset() {
-        clearInterval(state.timer);
-        state.selectedType = null;
+      function clearTimers() {
+        state.timers.forEach((timer) => {
+          clearTimeout(timer);
+          clearInterval(timer);
+          cancelAnimationFrame(timer);
+        });
+        state.timers = [];
+        $("timeoutBanner").classList.remove("show");
+      }
+
+      function go(nextScreen) {
+        clearTimers();
+        state.screen = nextScreen;
+        document.body.dataset.screen = nextScreen;
+        Object.entries(screens).forEach(([screenName, elementId]) => {
+          $(elementId).classList.toggle("active", screenName === nextScreen);
+        });
+        $("restartTop").classList.toggle("hidden", nextScreen === "IDLE");
+        $("sessionBadge").textContent = nextScreen === "IDLE" ? "Demo MVP" : state.sessionId;
+      }
+
+      function selectedPackageConfig() {
+        return state.config.frame_types.find((item) => item.slot_count === state.selectedPackage);
+      }
+
+      function selectedFilter() {
+        return state.config.filters.find((item) => item.id === state.filterId) || state.config.filters[0];
+      }
+
+      function selectedCaptures() {
+        return state.selectedCaptureIds
+          .map((id) => state.captures.find((capture) => capture.id === id))
+          .filter(Boolean);
+      }
+
+      function resetSession() {
+        clearTimers();
+        if (state.finalPreviewUrl) {
+          URL.revokeObjectURL(state.finalPreviewUrl);
+        }
+        state.sessionId = `PB${Date.now().toString().slice(-6)}`;
+        state.selectedPackage = null;
         state.captures = [];
         state.selectedCaptureIds = [];
-        $("captureStrip").innerHTML = "";
+        state.filterId = "natural";
+        state.selectedTemplateId = "";
+        state.finalPreviewUrl = "";
+        state.finalResult = null;
+        $("shotStrip").innerHTML = "";
         $("photoGrid").innerHTML = "";
-        $("templateGrid").innerHTML = "";
-        $("continueToTemplates").disabled = true;
-        show("stepChoose");
-      }
-
-      function selectedTypeConfig() {
-        return state.config.frame_types.find((item) => item.slot_count === state.selectedType);
+        $("selectedStrip").innerHTML = "";
+        $("frameGrid").innerHTML = "";
+        hideError();
+        go("IDLE");
       }
 
       async function loadConfig() {
-        const res = await fetch("/api/framebooth/config");
-        state.config = await res.json();
-        renderFrameTypes();
+        const response = await fetch("/api/framebooth/config");
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        state.config = await response.json();
+        state.sessionId = `PB${Date.now().toString().slice(-6)}`;
+        renderHeroStrip();
+        renderPackages();
       }
 
-      function renderFrameTypes() {
-        $("frameTypeCards").innerHTML = "";
-        state.config.frame_types.forEach((item) => {
-          const button = document.createElement("button");
-          button.className = "choice";
-          button.innerHTML = `<strong>Khung ${item.slot_count} anh</strong><span>Tu chup ${item.shots_to_take} tam, chon ${item.slot_count} tam dep nhat.</span>`;
-          button.addEventListener("click", () => startCapture(item.slot_count));
-          $("frameTypeCards").appendChild(button);
+      function renderHeroStrip() {
+        const strip = $("heroStrip");
+        strip.innerHTML = "";
+        const previews = state.config.frame_types
+          .flatMap((item) => item.templates.slice(0, 1))
+          .slice(0, 3);
+        previews.forEach((template, index) => {
+          const item = document.createElement("div");
+          item.className = "hero-frame";
+          item.style.setProperty("--tilt", `${[-4, 2, -1][index] || 0}deg`);
+          item.innerHTML = `<img alt="${template.name}" src="${template.preview_url}" />`;
+          strip.appendChild(item);
         });
       }
 
-      function startCapture(slotCount) {
-        state.selectedType = slotCount;
+      function renderPackages() {
+        const grid = $("packageGrid");
+        grid.innerHTML = "";
+        state.config.frame_types.forEach((item) => {
+          const firstTemplate = item.templates[0];
+          const button = document.createElement("button");
+          button.className = "package-card";
+          button.type = "button";
+          button.disabled = !firstTemplate;
+          button.innerHTML = `
+            <div class="package-image">
+              ${
+                firstTemplate
+                  ? `<img alt="${firstTemplate.name}" src="${firstTemplate.preview_url}" />`
+                  : `<span class="status-line">Chưa có khung</span>`
+              }
+            </div>
+            <div class="package-body">
+              <div class="package-title">${item.slot_count} ảnh</div>
+              <div class="price">${money(item.price)}</div>
+              <div class="meta-row">
+                <span class="tag">${item.shots_to_take} lần chụp</span>
+                <span class="tag">chọn ${item.slot_count}</span>
+              </div>
+            </div>
+          `;
+          button.addEventListener("click", () => selectPackage(item.slot_count));
+          grid.appendChild(button);
+        });
+      }
+
+      function selectPackage(slotCount) {
+        state.selectedPackage = slotCount;
         state.captures = [];
         state.selectedCaptureIds = [];
-        $("captureStrip").innerHTML = "";
-        show("stepCapture");
-        runAutoCapture();
+        state.filterId = "natural";
+        state.selectedTemplateId = "";
+        showPayment();
       }
 
-      async function runAutoCapture() {
-        const cfg = selectedTypeConfig();
-        for (let shot = 1; shot <= cfg.shots_to_take; shot += 1) {
-          await countdown(cfg.countdown_seconds || state.config.countdown_seconds, shot, cfg.shots_to_take);
-          $("captureStatus").textContent = "Dang chup...";
-          const capture = await postCapture();
-          state.captures.push(capture);
-          appendCaptureThumb(capture, shot);
-        }
-        renderPhotoSelection();
+      function startPackageSelect() {
+        go("PACKAGE_SELECT");
+        armSimpleTimeout(60, () => resetSession());
       }
 
-      function countdown(seconds, shot, total) {
-        return new Promise((resolve) => {
-          let remaining = seconds;
-          $("captureProgress").textContent = `Tam ${shot}/${total}`;
-          $("captureStatus").textContent = "Tu dong chup sau";
-          $("countdownNumber").textContent = remaining;
-          clearInterval(state.timer);
-          state.timer = setInterval(() => {
-            remaining -= 1;
-            $("countdownNumber").textContent = remaining;
-            if (remaining <= 0) {
-              clearInterval(state.timer);
-              resolve();
-            }
-          }, 1000);
+      function showPayment() {
+        const cfg = selectedPackageConfig();
+        $("paymentTitle").textContent = `Gói ${cfg.slot_count} ảnh`;
+        $("paymentText").textContent = `${money(cfg.price)} · ${cfg.shots_to_take} lần chụp · mã ${state.sessionId}`;
+        $("paymentStatus").textContent = "Đang xác nhận...";
+        drawQr("paymentQr", `PAY:${state.sessionId}:${cfg.price}`);
+        go("PAYMENT");
+        animateMeter("paymentMeter", state.config.payment_mock_seconds, () => {
+          $("paymentStatus").textContent = "Đã xác nhận";
+          rememberTimer(setTimeout(showReady, 250));
         });
       }
 
-      async function postCapture() {
-        const res = await fetch("/api/framebooth/capture", { method: "POST" });
-        if (!res.ok) {
-          throw new Error(await res.text());
-        }
-        return res.json();
+      function showReady() {
+        const cfg = selectedPackageConfig();
+        $("readyTitle").textContent = `Chuẩn bị chụp ${cfg.shots_to_take} kiểu`;
+        $("readyText").textContent = `Mỗi kiểu cách nhau ${state.config.countdown_seconds}s.`;
+        go("GET_READY");
+        rememberTimer(setTimeout(startCaptureSequence, state.config.get_ready_seconds * 1000));
       }
 
-      function appendCaptureThumb(capture, number) {
+      async function startCaptureSequence() {
+        go("CAPTURING");
+        $("shotStrip").innerHTML = "";
+        state.captures = [];
+        state.selectedCaptureIds = [];
+        try {
+          await runCaptureSequence();
+          renderPhotoSelection();
+        } catch (error) {
+          showError("Camera chưa phản hồi", String(error.message || error), startCaptureSequence);
+        }
+      }
+
+      async function runCaptureSequence() {
+        const cfg = selectedPackageConfig();
+        for (let shot = 1; shot <= cfg.shots_to_take; shot += 1) {
+          $("shotLabel").textContent = `Kiểu ${shot}/${cfg.shots_to_take}`;
+          $("captureTitle").textContent = `Còn ${cfg.shots_to_take - shot + 1} kiểu`;
+          await runShotCountdown(state.config.countdown_seconds);
+          $("captureStatus").textContent = "Đang chụp...";
+          triggerFlash();
+          const capture = await captureWithRetry(2);
+          state.captures.push(capture);
+          appendShotThumb(capture, shot);
+          $("captureStatus").textContent = "Đẹp rồi, chuẩn bị kiểu tiếp theo";
+        }
+      }
+
+      function runShotCountdown(seconds) {
+        return new Promise((resolve) => {
+          let remaining = seconds;
+          $("captureStatus").textContent = "Tạo dáng";
+          $("countdownNumber").textContent = remaining;
+          const timer = rememberTimer(
+            setInterval(() => {
+              remaining -= 1;
+              $("countdownNumber").textContent = Math.max(remaining, 0);
+              if (remaining <= 0) {
+                clearInterval(timer);
+                resolve();
+              }
+            }, 1000),
+          );
+        });
+      }
+
+      function triggerFlash() {
+        const flash = $("flash");
+        flash.classList.remove("on");
+        void flash.offsetWidth;
+        flash.classList.add("on");
+      }
+
+      async function captureWithRetry(retries) {
+        let lastError = null;
+        for (let attempt = 0; attempt <= retries; attempt += 1) {
+          try {
+            const response = await fetch("/api/framebooth/capture", { method: "POST" });
+            if (!response.ok) {
+              throw new Error(await response.text());
+            }
+            return await response.json();
+          } catch (error) {
+            lastError = error;
+            if (attempt < retries) {
+              $("captureStatus").textContent = "Thử lại camera...";
+              await sleep(800);
+            }
+          }
+        }
+        throw lastError || new Error("capture failed");
+      }
+
+      function appendShotThumb(capture, number) {
         const img = document.createElement("img");
-        img.className = "thumb";
-        img.alt = `Capture ${number}`;
+        img.className = "shot-thumb";
+        img.alt = `Ảnh ${number}`;
         img.src = `${capture.preview_url}?v=${Date.now()}`;
-        $("captureStrip").appendChild(img);
+        $("shotStrip").appendChild(img);
       }
 
       function renderPhotoSelection() {
-        const cfg = selectedTypeConfig();
-        $("selectHint").textContent = `Chon dung ${cfg.slot_count} anh. Thu tu click se la thu tu gan vao khung.`;
+        const cfg = selectedPackageConfig();
+        $("selectionCounter").textContent = `${state.selectedCaptureIds.length}/${cfg.slot_count}`;
+        $("photosNextButton").disabled = true;
         $("photoGrid").innerHTML = "";
         state.captures.forEach((capture, index) => {
-          const card = document.createElement("button");
-          card.className = "photo";
-          card.type = "button";
-          card.dataset.id = capture.id;
-          card.innerHTML = `<img alt="Photo ${index + 1}" src="${capture.preview_url}?v=${Date.now()}" />`;
-          card.addEventListener("click", () => togglePhoto(capture.id));
-          $("photoGrid").appendChild(card);
+          const button = document.createElement("button");
+          button.className = "photo-card";
+          button.type = "button";
+          button.dataset.id = capture.id;
+          button.innerHTML = `<img alt="Ảnh ${index + 1}" src="${capture.preview_url}?v=${Date.now()}" />`;
+          button.addEventListener("click", () => toggleCapture(capture.id));
+          $("photoGrid").appendChild(button);
         });
-        show("stepSelectPhotos");
+        go("PHOTO_SELECT");
+        armWarningTimeout(45, 15, "Tự chọn ảnh sau", () => {
+          state.selectedCaptureIds = state.captures.slice(0, cfg.slot_count).map((capture) => capture.id);
+          updatePhotoSelection();
+          showFilterSelect();
+        });
       }
 
-      function togglePhoto(captureId) {
-        const cfg = selectedTypeConfig();
+      function toggleCapture(captureId) {
+        const cfg = selectedPackageConfig();
         const selectedIndex = state.selectedCaptureIds.indexOf(captureId);
         if (selectedIndex >= 0) {
           state.selectedCaptureIds.splice(selectedIndex, 1);
         } else if (state.selectedCaptureIds.length < cfg.slot_count) {
           state.selectedCaptureIds.push(captureId);
+        } else {
+          $("selectionCounter").animate([{ transform: "scale(1)" }, { transform: "scale(1.08)" }, { transform: "scale(1)" }], 240);
         }
         updatePhotoSelection();
+        armWarningTimeout(45, 15, "Tự chọn ảnh sau", () => {
+          state.selectedCaptureIds = state.captures.slice(0, cfg.slot_count).map((capture) => capture.id);
+          updatePhotoSelection();
+          showFilterSelect();
+        });
       }
 
       function updatePhotoSelection() {
-        const cfg = selectedTypeConfig();
-        document.querySelectorAll(".photo").forEach((card) => {
-          card.classList.remove("selected");
-          card.querySelector(".badge")?.remove();
+        const cfg = selectedPackageConfig();
+        document.querySelectorAll(".photo-card").forEach((card) => {
           const selectedIndex = state.selectedCaptureIds.indexOf(card.dataset.id);
+          card.classList.toggle("selected", selectedIndex >= 0);
+          card.querySelector(".select-badge")?.remove();
           if (selectedIndex >= 0) {
-            card.classList.add("selected");
             const badge = document.createElement("div");
-            badge.className = "badge";
+            badge.className = "select-badge";
             badge.textContent = selectedIndex + 1;
             card.appendChild(badge);
           }
         });
-        $("continueToTemplates").disabled = state.selectedCaptureIds.length !== cfg.slot_count;
+        $("selectionCounter").textContent = `${state.selectedCaptureIds.length}/${cfg.slot_count}`;
+        $("photosNextButton").disabled = state.selectedCaptureIds.length !== cfg.slot_count;
       }
 
-      function renderTemplates() {
-        const cfg = selectedTypeConfig();
-        $("templateGrid").innerHTML = "";
+      function showFilterSelect() {
+        renderFilterPreview();
+        renderFilters();
+        go("FILTER_SELECT");
+        armWarningTimeout(30, 10, "Tự dùng Natural sau", () => {
+          state.filterId = "natural";
+          showFrameSelect();
+        });
+      }
+
+      function renderFilterPreview() {
+        const cssFilter = selectedFilter().css_filter;
+        $("selectedStrip").innerHTML = "";
+        selectedCaptures().forEach((capture, index) => {
+          const item = document.createElement("div");
+          item.className = "selected-preview";
+          item.innerHTML = `<img alt="Ảnh đã chọn ${index + 1}" src="${capture.preview_url}" style="filter:${cssFilter}" />`;
+          $("selectedStrip").appendChild(item);
+        });
+      }
+
+      function renderFilters() {
+        const firstCapture = selectedCaptures()[0];
+        $("filterRow").innerHTML = "";
+        state.config.filters.forEach((filter) => {
+          const button = document.createElement("button");
+          button.className = `filter-card ${filter.id === state.filterId ? "selected" : ""}`;
+          button.type = "button";
+          button.innerHTML = `
+            <div class="filter-thumb">
+              <img alt="${filter.name}" src="${firstCapture.preview_url}" style="filter:${filter.css_filter}" />
+            </div>
+            <div class="filter-name">${filter.name}</div>
+          `;
+          button.addEventListener("click", () => {
+            state.filterId = filter.id;
+            renderFilterPreview();
+            renderFilters();
+            armWarningTimeout(30, 10, "Tự dùng Natural sau", () => showFrameSelect());
+          });
+          $("filterRow").appendChild(button);
+        });
+      }
+
+      async function showFrameSelect() {
+        const cfg = selectedPackageConfig();
+        $("frameGrid").innerHTML = "";
         cfg.templates.forEach((template) => {
           const button = document.createElement("button");
-          button.className = "template";
+          button.className = "frame-card";
           button.type = "button";
-          button.innerHTML = `<img alt="${template.name}" src="${template.preview_url}" /><strong>${template.name}</strong>`;
-          button.addEventListener("click", () => renderFinal(template.id));
-          $("templateGrid").appendChild(button);
+          button.dataset.id = template.id;
+          button.innerHTML = `
+            <div class="frame-preview">
+              <div class="skeleton"></div>
+            </div>
+            <div class="frame-name">${template.name}</div>
+          `;
+          button.addEventListener("click", () => selectTemplate(template));
+          $("frameGrid").appendChild(button);
+          loadCompositePreview(button, template);
         });
-        show("stepTemplates");
+        go("FRAME_SELECT");
+        armWarningTimeout(30, 10, "Tự chọn khung sau", () => {
+          const firstTemplate = selectedPackageConfig().templates[0];
+          if (firstTemplate) {
+            selectTemplate(firstTemplate);
+          }
+        });
       }
 
-      async function renderFinal(templateId) {
-        show("stepResult");
-        $("resultImage").removeAttribute("src");
-        const res = await fetch("/api/framebooth/render", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            template_id: templateId,
-            capture_ids: state.selectedCaptureIds,
-          }),
-        });
-        if (!res.ok) {
-          alert(await res.text());
-          show("stepTemplates");
-          return;
+      async function loadCompositePreview(button, template) {
+        try {
+          const response = await fetch(`/api/framebooth/templates/${template.id}/composite-preview`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ capture_ids: state.selectedCaptureIds, filter_id: state.filterId }),
+          });
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const preview = button.querySelector(".frame-preview");
+          preview.innerHTML = `<img alt="${template.name}" src="${url}" />`;
+        } catch (error) {
+          const preview = button.querySelector(".frame-preview");
+          preview.innerHTML = `<img alt="${template.name}" src="${template.preview_url}" />`;
+          console.warn(error);
         }
-        const result = await res.json();
-        $("resultImage").src = `${result.media_url}?v=${Date.now()}`;
-        $("openGallery").href = result.gallery_url;
       }
 
-      $("continueToTemplates").addEventListener("click", renderTemplates);
-      $("retake").addEventListener("click", () => startCapture(state.selectedType));
-      $("newSession").addEventListener("click", reset);
-      $("restartTop").addEventListener("click", reset);
+      async function selectTemplate(template) {
+        state.selectedTemplateId = template.id;
+        go("FINAL_PREVIEW");
+        $("finalPreviewImage").removeAttribute("src");
+        try {
+          const response = await fetch(`/api/framebooth/templates/${template.id}/composite-preview`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ capture_ids: state.selectedCaptureIds, filter_id: state.filterId }),
+          });
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+          const blob = await response.blob();
+          if (state.finalPreviewUrl) {
+            URL.revokeObjectURL(state.finalPreviewUrl);
+          }
+          state.finalPreviewUrl = URL.createObjectURL(blob);
+          $("finalPreviewImage").src = state.finalPreviewUrl;
+          armSimpleTimeout(30, printFinal);
+        } catch (error) {
+          showError("Chưa tạo được preview", String(error.message || error), () => selectTemplate(template));
+        }
+      }
+
+      async function printFinal() {
+        try {
+          const response = await fetch("/api/framebooth/render", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              template_id: state.selectedTemplateId,
+              capture_ids: state.selectedCaptureIds,
+              filter_id: state.filterId,
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+          state.finalResult = await response.json();
+          showPrinting();
+        } catch (error) {
+          showError("Chưa render được ảnh", String(error.message || error), printFinal);
+        }
+      }
+
+      function showPrinting() {
+        $("printingImage").src = state.finalResult.media_url;
+        go("PRINTING");
+        animateMeter("printingMeter", state.config.printing_mock_seconds, showDownloadQr);
+      }
+
+      function showDownloadQr() {
+        const url = `${location.origin}${state.finalResult.gallery_url}`;
+        $("galleryLink").href = state.finalResult.gallery_url;
+        $("downloadStatus").textContent = "QR sẽ tự chuyển sau vài giây";
+        drawQr("downloadQr", url);
+        go("QR_DOWNLOAD");
+        rememberTimer(setTimeout(showThankYou, state.config.qr_download_seconds * 1000));
+      }
+
+      function showThankYou() {
+        go("THANK_YOU");
+        rememberTimer(setTimeout(resetSession, state.config.thank_you_seconds * 1000));
+      }
+
+      function animateMeter(elementId, seconds, done) {
+        const element = $(elementId);
+        const start = performance.now();
+        function tick(now) {
+          const elapsed = Math.min((now - start) / (seconds * 1000), 1);
+          element.style.transform = `scaleX(${elapsed})`;
+          if (elapsed < 1) {
+            rememberTimer(requestAnimationFrame(tick));
+          } else {
+            done?.();
+          }
+        }
+        element.style.transform = "scaleX(0)";
+        rememberTimer(requestAnimationFrame(tick));
+      }
+
+      function armSimpleTimeout(seconds, action) {
+        rememberTimer(setTimeout(action, seconds * 1000));
+      }
+
+      function armWarningTimeout(waitSeconds, warningSeconds, label, action) {
+        clearTimers();
+        rememberTimer(
+          setTimeout(() => {
+            let remaining = warningSeconds;
+            $("timeoutBanner").textContent = `${label}: ${remaining}s`;
+            $("timeoutBanner").classList.add("show");
+            const interval = rememberTimer(
+              setInterval(() => {
+                remaining -= 1;
+                $("timeoutBanner").textContent = `${label}: ${remaining}s`;
+                if (remaining <= 0) {
+                  clearInterval(interval);
+                  $("timeoutBanner").classList.remove("show");
+                  action();
+                }
+              }, 1000),
+            );
+          }, waitSeconds * 1000),
+        );
+      }
+
+      function showError(title, text, retry) {
+        clearTimers();
+        state.errorRetry = retry;
+        $("errorTitle").textContent = title;
+        $("errorText").textContent = text;
+        $("errorPanel").classList.add("show");
+      }
+
+      function hideError() {
+        $("errorPanel").classList.remove("show");
+      }
+
+      function drawQr(canvasId, value) {
+        const canvas = $(canvasId);
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+        const size = canvas.width;
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, size, size);
+
+        const hash = Array.from(value).reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) >>> 0, 2166136261);
+        function finder(x, y) {
+          ctx.fillStyle = "#111318";
+          ctx.fillRect(x, y, 7, 7);
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(x + 1, y + 1, 5, 5);
+          ctx.fillStyle = "#111318";
+          ctx.fillRect(x + 2, y + 2, 3, 3);
+        }
+        finder(2, 2);
+        finder(size - 9, 2);
+        finder(2, size - 9);
+
+        ctx.fillStyle = "#111318";
+        for (let y = 0; y < size; y += 1) {
+          for (let x = 0; x < size; x += 1) {
+            const inFinder = (x < 10 && y < 10) || (x > size - 11 && y < 10) || (x < 10 && y > size - 11);
+            if (inFinder) {
+              continue;
+            }
+            const bit = (Math.sin((x + 1) * 12.9898 + (y + 1) * 78.233 + hash) * 43758.5453) % 1;
+            if (bit > 0.48) {
+              ctx.fillRect(x, y, 1, 1);
+            }
+          }
+        }
+      }
+
+      $("startButton").addEventListener("click", startPackageSelect);
+      $("screenIdle").addEventListener("click", (event) => {
+        if (event.target.id !== "startButton") {
+          startPackageSelect();
+        }
+      });
+      $("restartTop").addEventListener("click", resetSession);
+      $("startNow").addEventListener("click", startCaptureSequence);
+      $("retakeButton").addEventListener("click", () => {
+        state.selectedCaptureIds = [];
+        startCaptureSequence();
+      });
+      $("photosNextButton").addEventListener("click", showFilterSelect);
+      $("backToPhotos").addEventListener("click", renderPhotoSelection);
+      $("filterNextButton").addEventListener("click", showFrameSelect);
+      $("backToFilter").addEventListener("click", showFilterSelect);
+      $("editFrameButton").addEventListener("click", showFrameSelect);
+      $("printButton").addEventListener("click", printFinal);
+      $("finishButton").addEventListener("click", showThankYou);
+      $("errorRetry").addEventListener("click", () => {
+        hideError();
+        state.errorRetry?.();
+      });
+      $("errorReset").addEventListener("click", resetSession);
 
       loadConfig().catch((error) => {
-        console.error(error);
-        alert("Khong tai duoc cau hinh photobooth.");
+        showError("Không tải được kiosk", String(error.message || error), loadConfig);
       });
     </script>
   </body>
