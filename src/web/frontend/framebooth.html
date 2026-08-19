@@ -72,7 +72,7 @@
         gap: 16px;
         justify-content: space-between;
         left: 0;
-        padding: 22px clamp(18px, 3vw, 42px);
+        padding: 16px clamp(18px, 2.4vw, 34px);
         pointer-events: none;
         position: fixed;
         right: 0;
@@ -84,7 +84,7 @@
         align-items: center;
         display: flex;
         gap: 12px;
-        font-size: clamp(19px, 2vw, 26px);
+        font-size: clamp(18px, 1.8vw, 24px);
         font-weight: 900;
         letter-spacing: 0;
       }
@@ -95,9 +95,9 @@
         border-radius: 8px;
         color: #fff;
         display: inline-flex;
-        height: 42px;
+        height: 38px;
         justify-content: center;
-        width: 42px;
+        width: 38px;
       }
 
       .top-actions {
@@ -116,8 +116,8 @@
         box-shadow: var(--soft-shadow);
         display: inline-flex;
         font-weight: 800;
-        min-height: 44px;
-        padding: 0 18px;
+        min-height: 40px;
+        padding: 0 16px;
       }
 
       .restart {
@@ -130,7 +130,8 @@
         height: 100%;
         inset: 0;
         opacity: 0;
-        padding: 92px clamp(18px, 3vw, 42px) 34px;
+        overflow: hidden;
+        padding: 76px clamp(16px, 2.4vw, 34px) 18px;
         pointer-events: none;
         position: absolute;
         transform: translateY(18px) scale(0.99);
@@ -152,8 +153,8 @@
       }
 
       #screenIdle {
-        align-content: start;
-        padding-top: clamp(132px, 12vh, 220px);
+        align-content: center;
+        padding-top: 76px;
       }
 
       .kicker {
@@ -172,7 +173,7 @@
       }
 
       h1 {
-        font-size: clamp(42px, 7.4vw, 92px);
+        font-size: clamp(46px, 6.4vw, 88px);
         font-weight: 950;
         letter-spacing: 0;
         line-height: 0.95;
@@ -181,7 +182,7 @@
       }
 
       h2 {
-        font-size: clamp(26px, 3.6vw, 46px);
+        font-size: clamp(24px, 2.8vw, 38px);
         font-weight: 950;
         letter-spacing: 0;
         line-height: 1;
@@ -189,10 +190,10 @@
 
       .sub {
         color: rgba(17, 19, 24, 0.68);
-        font-size: clamp(17px, 2vw, 24px);
+        font-size: clamp(17px, 1.8vw, 24px);
         font-weight: 650;
         line-height: 1.35;
-        margin-top: 18px;
+        margin-top: 14px;
         max-width: 760px;
         text-align: center;
       }
@@ -201,9 +202,10 @@
         display: grid;
         gap: 12px;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        margin: 34px auto 28px;
-        max-width: 760px;
-        width: min(92vw, 760px);
+        margin: 26px auto 26px;
+        max-height: min(42vh, 420px);
+        max-width: 820px;
+        width: min(86vw, 820px);
       }
 
       .hero-frame {
@@ -231,8 +233,8 @@
         color: #fff;
         font-size: clamp(20px, 2.3vw, 30px);
         font-weight: 950;
-        min-height: 68px;
-        padding: 0 34px;
+        min-height: 66px;
+        padding: 0 36px;
       }
 
       @keyframes pulse {
@@ -249,17 +251,110 @@
       .package-grid {
         align-self: start;
         display: grid;
-        gap: 18px;
+        gap: 12px;
         grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin: 0 auto;
+        max-width: 1180px;
+        min-height: 0;
+        width: 100%;
+      }
+
+      .package-options {
         margin: 0 auto;
         max-width: 1120px;
         width: 100%;
       }
 
+      .digital-toggle {
+        align-items: center;
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: var(--soft-shadow);
+        display: grid;
+        gap: 16px;
+        grid-template-columns: auto 1fr auto;
+        min-height: 68px;
+        padding: 10px 14px;
+        text-align: left;
+        transition:
+          border-color 180ms ease,
+          box-shadow 180ms ease,
+          transform 180ms ease;
+        width: 100%;
+      }
+
+      .digital-toggle.active {
+        border-color: rgba(0, 169, 157, 0.55);
+        box-shadow: 0 0 0 5px rgba(0, 169, 157, 0.12), var(--soft-shadow);
+      }
+
+      .digital-toggle:focus-visible,
+      .digital-toggle:hover {
+        transform: translateY(-2px);
+      }
+
+      .toggle-switch {
+        align-items: center;
+        background: rgba(17, 19, 24, 0.16);
+        border-radius: 999px;
+        display: inline-flex;
+        height: 38px;
+        padding: 4px;
+        transition: background 180ms ease;
+        width: 70px;
+      }
+
+      .toggle-switch span {
+        background: #fff;
+        border-radius: 999px;
+        box-shadow: 0 5px 14px rgba(17, 19, 24, 0.18);
+        display: block;
+        height: 30px;
+        transform: translateX(0);
+        transition: transform 180ms ease;
+        width: 30px;
+      }
+
+      .digital-toggle.active .toggle-switch {
+        background: var(--teal);
+      }
+
+      .digital-toggle.active .toggle-switch span {
+        transform: translateX(32px);
+      }
+
+      .toggle-copy {
+        display: grid;
+        gap: 4px;
+      }
+
+      .toggle-copy strong {
+        font-size: clamp(16px, 1.5vw, 21px);
+        font-weight: 950;
+      }
+
+      .toggle-copy small,
+      .option-note {
+        color: rgba(17, 19, 24, 0.62);
+        font-size: 15px;
+        font-weight: 760;
+        line-height: 1.35;
+      }
+
+      .option-note {
+        text-align: right;
+      }
+
       #screenPackage .selection-layout {
         align-content: start;
-        gap: clamp(28px, 4vh, 72px);
-        grid-template-rows: auto auto;
+        gap: clamp(12px, 2vh, 24px);
+        grid-template-rows: auto auto auto;
+        min-height: 0;
+      }
+
+      #screenPackage .package-grid {
+        height: min(50vh, 430px);
       }
 
       .package-card,
@@ -275,8 +370,10 @@
 
       .package-card {
         display: grid;
-        min-height: 560px;
-        padding: 18px;
+        grid-template-rows: minmax(0, 1fr) auto;
+        height: 100%;
+        min-height: 0;
+        padding: 12px;
         text-align: left;
         transition:
           border-color 180ms ease,
@@ -296,12 +393,13 @@
 
       .package-image {
         align-items: center;
-        aspect-ratio: 3 / 4;
         background: linear-gradient(180deg, #fff, var(--mist));
         border-radius: 6px;
         display: flex;
+        height: 100%;
         justify-content: center;
         overflow: hidden;
+        min-height: 0;
       }
 
       .package-image img {
@@ -314,19 +412,19 @@
       .package-body {
         align-self: end;
         display: grid;
-        gap: 10px;
-        padding-top: 18px;
+        gap: 8px;
+        padding-top: 12px;
       }
 
       .package-title {
-        font-size: clamp(28px, 4vw, 48px);
+        font-size: clamp(24px, 3vw, 38px);
         font-weight: 950;
         letter-spacing: 0;
       }
 
       .price {
         color: var(--coral);
-        font-size: clamp(22px, 2.5vw, 34px);
+        font-size: clamp(19px, 2vw, 28px);
         font-weight: 950;
       }
 
@@ -342,9 +440,9 @@
         border: 1px solid rgba(0, 169, 157, 0.2);
         border-radius: 999px;
         color: var(--teal-dark);
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 900;
-        padding: 8px 12px;
+        padding: 6px 10px;
       }
 
       .payment-layout,
@@ -353,7 +451,7 @@
         display: grid;
         gap: clamp(22px, 4vw, 54px);
         grid-template-columns: minmax(0, 1fr) minmax(280px, 430px);
-        margin: clamp(96px, 14vh, 190px) auto auto;
+        margin: auto;
         max-width: 1120px;
         width: 100%;
       }
@@ -400,13 +498,14 @@
         display: block;
         height: 100%;
         transform-origin: left;
+        transition: transform 260ms ease;
       }
 
       .live-stage {
         background: #050505;
         border-radius: 8px;
         box-shadow: var(--shadow);
-        height: min(72vh, 860px);
+        height: min(78vh, 820px);
         overflow: hidden;
         position: relative;
         width: min(100%, 1040px);
@@ -415,8 +514,7 @@
       .live-stage img,
       .final-image,
       .photo-card img,
-      .frame-card img,
-      .selected-preview img {
+      .frame-card img {
         display: block;
         height: 100%;
         object-fit: cover;
@@ -459,6 +557,7 @@
         display: grid;
         gap: 18px;
         grid-template-columns: minmax(0, 1fr) 300px;
+        height: calc(100vh - 96px);
         min-height: 0;
       }
 
@@ -527,6 +626,43 @@
         z-index: 4;
       }
 
+      .rec-badge {
+        align-items: center;
+        background: rgba(17, 19, 24, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.32);
+        border-radius: 999px;
+        color: #fff;
+        display: inline-flex;
+        font-size: 15px;
+        font-weight: 950;
+        gap: 8px;
+        min-height: 42px;
+        padding: 0 14px;
+        position: absolute;
+        right: 24px;
+        top: 24px;
+        z-index: 4;
+      }
+
+      .rec-badge span {
+        animation: rec-blink 1s ease-in-out infinite;
+        background: var(--coral);
+        border-radius: 999px;
+        height: 11px;
+        width: 11px;
+      }
+
+      @keyframes rec-blink {
+        0%,
+        100% {
+          opacity: 1;
+        }
+
+        50% {
+          opacity: 0.35;
+        }
+      }
+
       .flash {
         background: #fff;
         inset: 0;
@@ -583,6 +719,31 @@
         width: 100%;
       }
 
+      .shot-progress {
+        background: rgba(17, 19, 24, 0.1);
+        border-radius: 999px;
+        height: 10px;
+        margin-top: 16px;
+        overflow: hidden;
+      }
+
+      .shot-progress span {
+        background: linear-gradient(90deg, var(--teal), var(--gold), var(--coral));
+        display: block;
+        height: 100%;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 260ms ease;
+      }
+
+      .digital-line {
+        color: rgba(17, 19, 24, 0.62);
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1.35;
+        margin-top: 12px;
+      }
+
       .selection-layout {
         display: grid;
         gap: 18px;
@@ -590,10 +751,18 @@
         min-height: 0;
       }
 
+      #screenPhotoSelect .selection-layout {
+        height: calc(100vh - 96px);
+        grid-template-rows: 1fr auto;
+        margin: 0 auto;
+        max-width: 1460px;
+        width: 100%;
+      }
+
       .screen-head {
         align-items: end;
         display: flex;
-        gap: 18px;
+        gap: 14px;
         justify-content: space-between;
         margin: 0 auto;
         max-width: 1180px;
@@ -601,7 +770,7 @@
       }
 
       .screen-head h1 {
-        font-size: clamp(34px, 5vw, 62px);
+        font-size: clamp(30px, 4vw, 50px);
         text-align: left;
       }
 
@@ -620,19 +789,23 @@
       }
 
       .photo-grid {
+        align-content: center;
+        align-self: center;
         display: grid;
-        gap: 14px;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: clamp(16px, 2vw, 26px);
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
         margin: 0 auto;
-        max-width: 1180px;
+        max-height: calc(100vh - 180px);
+        max-width: 1460px;
         min-height: 0;
         overflow: auto;
-        padding: 6px;
+        padding: 8px;
         width: 100%;
       }
 
       .photo-card {
         aspect-ratio: 4 / 3;
+        min-height: 220px;
         padding: 0;
         position: relative;
         transition:
@@ -680,7 +853,7 @@
         align-items: center;
         border-radius: 8px;
         display: inline-flex;
-        font-size: clamp(17px, 1.8vw, 22px);
+        font-size: clamp(18px, 1.5vw, 22px);
         font-weight: 950;
         justify-content: center;
         min-height: 58px;
@@ -707,38 +880,106 @@
       }
 
       .filter-layout {
-        align-content: center;
         display: grid;
-        gap: 24px;
+        gap: 12px;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        height: calc(100vh - 96px);
         margin: auto;
-        max-width: 1180px;
+        max-width: 1240px;
         min-height: 0;
         width: 100%;
       }
 
-      .selected-strip {
+      .design-layout {
         display: grid;
-        gap: 12px;
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 14px;
+        grid-template-columns: minmax(280px, 430px) minmax(0, 1fr);
+        height: 100%;
+        min-height: 0;
       }
 
-      .selected-preview {
-        aspect-ratio: 4 / 3;
+      .design-preview {
+        align-content: stretch;
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        display: grid;
+        gap: 10px;
+        grid-template-rows: minmax(0, 1fr) auto;
+        justify-items: center;
+        min-height: 0;
+        padding: 12px;
+      }
+
+      .design-preview-frame {
+        align-items: center;
+        background: linear-gradient(180deg, #fff, var(--mist));
+        border-radius: 6px;
+        display: flex;
+        height: 100%;
+        justify-content: center;
+        min-height: 0;
+        overflow: hidden;
+        position: relative;
+        width: 100%;
+      }
+
+      .design-preview-frame img {
+        display: block;
+        height: auto;
+        max-height: 100%;
+        object-fit: contain;
+        width: 100%;
+      }
+
+      .design-meta {
+        display: grid;
+        gap: 4px;
+        text-align: center;
+      }
+
+      .design-meta strong {
+        font-size: 19px;
+        font-weight: 950;
+      }
+
+      .design-meta span {
+        color: rgba(17, 19, 24, 0.62);
+        font-size: 15px;
+        font-weight: 800;
+      }
+
+      .design-controls {
+        background: rgba(255, 255, 255, 0.76);
+        border: 1px solid var(--line);
         border-radius: 8px;
         box-shadow: var(--soft-shadow);
-        overflow: hidden;
+        display: grid;
+        gap: 12px;
+        align-content: start;
+        min-height: 0;
+        padding: 12px;
+      }
+
+      .control-label {
+        color: rgba(17, 19, 24, 0.66);
+        font-size: 14px;
+        font-weight: 950;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
       }
 
       .filter-row {
         display: grid;
-        gap: 12px;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       .filter-card {
         display: grid;
-        gap: 10px;
-        padding: 10px;
+        gap: 8px;
+        padding: 8px;
         text-align: left;
       }
 
@@ -748,7 +989,7 @@
       }
 
       .filter-thumb {
-        aspect-ratio: 4 / 3;
+        aspect-ratio: 2.35 / 1;
         border-radius: 6px;
         overflow: hidden;
       }
@@ -757,6 +998,11 @@
       .frame-name {
         font-size: 17px;
         font-weight: 950;
+      }
+
+      .frame-card.selected {
+        border-color: var(--coral);
+        box-shadow: 0 0 0 5px rgba(255, 77, 109, 0.14), var(--soft-shadow);
       }
 
       .frame-layout {
@@ -848,12 +1094,154 @@
         object-fit: contain;
       }
 
+      .result-layout {
+        align-items: stretch;
+        display: grid;
+        gap: 18px;
+        grid-template-columns: minmax(0, 1fr) minmax(340px, 500px);
+        height: calc(100vh - 96px);
+        margin: auto;
+        max-width: 1240px;
+        min-height: 0;
+        width: 100%;
+      }
+
+      .video-panel,
+      .result-panel {
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        min-height: 0;
+        padding: 14px;
+      }
+
+      .video-panel {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 12px;
+      }
+
+      .timelapse-stage {
+        background: #050505;
+        border-radius: 6px;
+        min-height: 0;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .timelapse-stage video {
+        display: block;
+        height: 100%;
+        object-fit: cover;
+        width: 100%;
+      }
+
+      .video-hud {
+        align-items: center;
+        background: linear-gradient(0deg, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0));
+        bottom: 0;
+        color: #fff;
+        display: flex;
+        gap: 10px;
+        justify-content: space-between;
+        left: 0;
+        padding: 64px 18px 16px;
+        position: absolute;
+        right: 0;
+      }
+
+      .video-hud span,
+      .print-status {
+        align-items: center;
+        display: inline-flex;
+        gap: 8px;
+        font-size: 15px;
+        font-weight: 950;
+      }
+
+      .status-dot {
+        background: var(--gold);
+        border-radius: 999px;
+        display: inline-block;
+        height: 10px;
+        width: 10px;
+      }
+
+      .status-dot.done {
+        background: var(--teal);
+      }
+
+      .status-dot.off {
+        background: rgba(17, 19, 24, 0.28);
+      }
+
+      .result-panel {
+        display: grid;
+        gap: 14px;
+        grid-template-rows: 1fr auto;
+      }
+
+      .result-image-wrap {
+        align-items: center;
+        background: #fff;
+        border-radius: 6px;
+        display: flex;
+        justify-content: center;
+        min-height: 0;
+        overflow: hidden;
+        padding: 10px;
+      }
+
+      .result-image-wrap .final-image {
+        max-height: 58vh;
+      }
+
+      .result-actions {
+        display: grid;
+        gap: 12px;
+      }
+
+      .result-qr-row {
+        align-items: center;
+        display: grid;
+        gap: 12px;
+        grid-template-columns: 174px 1fr;
+      }
+
+      .result-qr-row .qr {
+        border-width: 8px;
+        width: 174px;
+      }
+
+      .result-qr-row.disabled {
+        opacity: 0.48;
+      }
+
+      .result-qr-copy {
+        display: grid;
+        gap: 4px;
+      }
+
+      .result-qr-copy strong {
+        font-size: 18px;
+        font-weight: 950;
+      }
+
+      .result-qr-copy span {
+        color: rgba(17, 19, 24, 0.62);
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1.35;
+      }
+
       .printing-layout {
         align-items: center;
         display: grid;
         justify-items: center;
         margin: auto;
         max-width: 900px;
+        max-height: calc(100vh - 96px);
         width: 100%;
       }
 
@@ -861,7 +1249,7 @@
         background: var(--ink);
         border-radius: 8px;
         box-shadow: var(--shadow);
-        height: 390px;
+        height: min(38vh, 360px);
         max-width: 680px;
         overflow: hidden;
         position: relative;
@@ -950,6 +1338,16 @@
         display: none !important;
       }
 
+      .timelapse-canvas {
+        height: 1px;
+        left: -9999px;
+        opacity: 0;
+        pointer-events: none;
+        position: fixed;
+        top: -9999px;
+        width: 1px;
+      }
+
       @media (max-width: 900px) {
         body {
           overflow: auto;
@@ -969,9 +1367,28 @@
         .package-grid,
         .payment-layout,
         .download-layout,
+        .design-layout,
         .capture-shell,
-        .final-layout {
+        .final-layout,
+        .result-layout {
           grid-template-columns: 1fr;
+        }
+
+        .digital-toggle {
+          grid-template-columns: auto 1fr;
+        }
+
+        .option-note {
+          grid-column: 1 / -1;
+          text-align: left;
+        }
+
+        .result-qr-row {
+          grid-template-columns: 128px 1fr;
+        }
+
+        .result-qr-row .qr {
+          width: 128px;
         }
 
         .package-card {
@@ -999,7 +1416,6 @@
         <div class="brand"><span class="brand-mark">TSL</span><span>Photobooth</span></div>
         <div class="top-actions">
           <span class="pill" id="sessionBadge">Demo MVP</span>
-          <button class="pill restart hidden" id="restartTop" type="button">Làm lại</button>
         </div>
       </header>
 
@@ -1015,9 +1431,18 @@
         <div class="selection-layout">
           <div class="screen-head">
             <div>
-              <p class="kicker">Bước 1</p>
               <h1>Chọn số ảnh trong khung</h1>
             </div>
+          </div>
+          <div class="package-options">
+            <button class="digital-toggle active" id="digitalToggle" type="button" aria-pressed="true">
+              <span class="toggle-switch" aria-hidden="true"><span></span></span>
+              <span class="toggle-copy">
+                <strong>Nhận File Số & Video Timelapse qua QR</strong>
+                <small>Gửi ảnh gốc HD, ảnh đã ghép khung và video loop sau khi in.</small>
+              </span>
+              <span class="option-note" id="digitalToggleState">Đang bật</span>
+            </button>
           </div>
           <div class="package-grid" id="packageGrid"></div>
         </div>
@@ -1055,10 +1480,11 @@
       <section class="screen" id="screenCapture" data-state="CAPTURING">
         <div class="capture-shell">
           <div class="capture-main">
-            <img alt="Live camera" src="/api/aquisition/stream.mjpg" />
+            <img id="captureLiveImage" alt="Live camera" src="/api/aquisition/stream.mjpg" />
             <div class="shot-label" id="shotLabel">Kiểu 1/4</div>
+            <div class="rec-badge" id="recordingBadge"><span></span>REC Timelapse</div>
             <div class="countdown-wrap">
-              <div class="countdown-number" id="countdownNumber">3</div>
+              <div class="countdown-number" id="countdownNumber">10</div>
             </div>
             <div class="flash" id="flash"></div>
           </div>
@@ -1067,6 +1493,8 @@
               <p class="kicker">Đang chụp</p>
               <h2 id="captureTitle">Tự động</h2>
               <p class="status-line" id="captureStatus" style="text-align: left">Không cần bấm nút.</p>
+              <div class="shot-progress"><span id="captureProgress"></span></div>
+              <p class="digital-line" id="captureDigitalStatus">Camera đang ghi timelapse nền.</p>
             </div>
             <div class="shot-strip" id="shotStrip"></div>
           </aside>
@@ -1075,13 +1503,6 @@
 
       <section class="screen" id="screenPhotoSelect" data-state="PHOTO_SELECT">
         <div class="selection-layout">
-          <div class="screen-head">
-            <div>
-              <p class="kicker">Chọn ảnh</p>
-              <h1>Giữ lại ảnh ưng ý</h1>
-            </div>
-            <div class="counter" id="selectionCounter">0/2</div>
-          </div>
           <div class="photo-grid" id="photoGrid"></div>
           <div class="toolbar">
             <button class="ghost" id="retakeButton" type="button">Chụp lại</button>
@@ -1094,15 +1515,30 @@
         <div class="filter-layout">
           <div class="screen-head">
             <div>
-              <p class="kicker">Bộ lọc</p>
-              <h1>Chọn màu ảnh</h1>
+              <h1>Chọn bộ lọc màu</h1>
             </div>
           </div>
-          <div class="selected-strip" id="selectedStrip"></div>
-          <div class="filter-row" id="filterRow"></div>
+          <div class="design-layout">
+            <div class="design-controls">
+              <div>
+                <div class="control-label">Màu ảnh</div>
+                <div class="filter-row" id="filterRow"></div>
+              </div>
+            </div>
+            <div class="design-preview">
+              <div class="design-preview-frame">
+                <div class="skeleton" id="designSkeleton"></div>
+                <img id="designPreviewImage" alt="Preview khung đang chọn" />
+              </div>
+              <div class="design-meta">
+                <strong id="designFrameName">Đang tạo preview</strong>
+                <span id="designFilterName">Natural</span>
+              </div>
+            </div>
+          </div>
           <div class="toolbar">
             <button class="ghost" id="backToPhotos" type="button">Đổi ảnh</button>
-            <button class="primary" id="filterNextButton" type="button">Chọn khung</button>
+            <button class="primary" id="filterNextButton" type="button">Xem kết quả</button>
           </div>
         </div>
       </section>
@@ -1115,7 +1551,7 @@
               <h1>Chọn theme cuối</h1>
             </div>
           </div>
-          <div class="frame-grid" id="frameGrid"></div>
+          <div class="frame-grid" id="legacyFrameGrid"></div>
           <div class="toolbar">
             <button class="ghost" id="backToFilter" type="button">Đổi màu</button>
           </div>
@@ -1123,17 +1559,44 @@
       </section>
 
       <section class="screen" id="screenFinal" data-state="FINAL_PREVIEW">
-        <div class="final-layout">
-          <div class="final-preview">
-            <img class="final-image" id="finalPreviewImage" alt="Final preview" />
+        <div class="result-layout">
+          <div class="video-panel">
+            <div>
+              <p class="kicker">Video Timelapse</p>
+              <h2 id="resultVideoTitle">Đang dựng video</h2>
+            </div>
+            <div class="timelapse-stage" id="timelapseStage">
+              <video id="timelapseVideo" autoplay loop muted playsinline></video>
+              <div class="video-hud">
+                <span><i class="status-dot" id="timelapseDot"></i><span id="timelapseStatus">Render nền</span></span>
+                <strong id="timelapseSpeed">4x</strong>
+              </div>
+            </div>
+            <div class="meter"><span id="timelapseMeter"></span></div>
           </div>
-          <div>
-            <p class="kicker">Xem trước</p>
-            <h1>Ảnh đã sẵn sàng</h1>
-            <p class="sub" style="text-align: left">Kiểm tra lần cuối trước khi in mock.</p>
-            <div class="toolbar" style="justify-content: flex-start; margin-top: 24px">
-              <button class="primary" id="printButton" type="button">In ngay</button>
-              <button class="ghost" id="editFrameButton" type="button">Đổi khung</button>
+          <div class="result-panel">
+            <div class="result-image-wrap">
+              <img class="final-image" id="finalPreviewImage" alt="Ảnh ghép hoàn thiện" />
+            </div>
+            <div class="result-actions">
+              <div>
+                <p class="kicker">Kết quả & In ấn</p>
+                <h2>Ảnh hoàn thiện</h2>
+              </div>
+              <div class="print-status"><i class="status-dot" id="printStatusDot"></i><span id="printStatusText">Sẵn sàng gửi lệnh in</span></div>
+              <div class="meter"><span id="resultPrintMeter"></span></div>
+              <div class="result-qr-row" id="resultQrRow">
+                <canvas class="qr" id="resultQr" width="33" height="33"></canvas>
+                <div class="result-qr-copy">
+                  <strong id="resultQrTitle">QR tải trọn bộ</strong>
+                  <span id="resultQrText">Ảnh gốc HD + ảnh ghép + video timelapse.</span>
+                </div>
+              </div>
+              <div class="toolbar" style="justify-content: flex-start">
+                <button class="primary" id="printButton" type="button">In ngay</button>
+                <button class="ghost" id="editFrameButton" type="button">Đổi màu</button>
+                <button class="ghost hidden" id="resultFinishButton" type="button">Hoàn tất</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1177,6 +1640,7 @@
       </section>
     </main>
 
+    <canvas class="timelapse-canvas" id="timelapseCanvas" width="960" height="540"></canvas>
     <div class="timeout-banner" id="timeoutBanner"></div>
 
     <div class="error-panel" id="errorPanel">
@@ -1186,7 +1650,7 @@
         <p id="errorText"></p>
         <div class="toolbar" style="justify-content: flex-start">
           <button class="primary" id="errorRetry" type="button">Thử lại</button>
-          <button class="ghost" id="errorReset" type="button">Làm lại</button>
+          <button class="ghost" id="errorReset" type="button">Về màn chờ</button>
         </div>
       </div>
     </div>
@@ -1214,10 +1678,22 @@
         selectedPackage: null,
         captures: [],
         selectedCaptureIds: [],
+        digitalDeliveryEnabled: true,
         filterId: "natural",
         selectedTemplateId: "",
+        designPreviewUrl: "",
         finalPreviewUrl: "",
         finalResult: null,
+        resultHasPrinted: false,
+        timelapseUrl: "",
+        timelapseBlobUrl: "",
+        timelapseChunks: [],
+        timelapseDrawTimer: null,
+        timelapseError: null,
+        timelapseReadyPromise: Promise.resolve(false),
+        timelapseReadyResolve: null,
+        timelapseRecorder: null,
+        timelapseRecordingId: 0,
         timers: [],
         errorRetry: null,
       };
@@ -1248,7 +1724,6 @@
         Object.entries(screens).forEach(([screenName, elementId]) => {
           $(elementId).classList.toggle("active", screenName === nextScreen);
         });
-        $("restartTop").classList.toggle("hidden", nextScreen === "IDLE");
         $("sessionBadge").textContent = nextScreen === "IDLE" ? "Demo MVP" : state.sessionId;
       }
 
@@ -1266,8 +1741,17 @@
           .filter(Boolean);
       }
 
+      function selectedTemplateConfig() {
+        const cfg = selectedPackageConfig();
+        return cfg?.templates.find((template) => template.id === state.selectedTemplateId) || cfg?.templates[0] || null;
+      }
+
       function resetSession() {
         clearTimers();
+        discardTimelapseRecording();
+        if (state.designPreviewUrl) {
+          URL.revokeObjectURL(state.designPreviewUrl);
+        }
         if (state.finalPreviewUrl) {
           URL.revokeObjectURL(state.finalPreviewUrl);
         }
@@ -1275,14 +1759,23 @@
         state.selectedPackage = null;
         state.captures = [];
         state.selectedCaptureIds = [];
+        state.digitalDeliveryEnabled = true;
         state.filterId = "natural";
         state.selectedTemplateId = "";
+        state.designPreviewUrl = "";
         state.finalPreviewUrl = "";
         state.finalResult = null;
+        state.resultHasPrinted = false;
+        state.timelapseUrl = "";
+        const timelapseVideo = $("timelapseVideo");
+        timelapseVideo.pause();
+        timelapseVideo.removeAttribute("src");
+        timelapseVideo.removeAttribute("poster");
+        timelapseVideo.load();
         $("shotStrip").innerHTML = "";
         $("photoGrid").innerHTML = "";
-        $("selectedStrip").innerHTML = "";
-        $("frameGrid").innerHTML = "";
+        $("legacyFrameGrid").innerHTML = "";
+        updateDigitalToggle();
         hideError();
         go("IDLE");
       }
@@ -1296,6 +1789,17 @@
         state.sessionId = `PB${Date.now().toString().slice(-6)}`;
         renderHeroStrip();
         renderPackages();
+        updateDigitalToggle();
+      }
+
+      function updateDigitalToggle() {
+        const toggle = $("digitalToggle");
+        if (!toggle) {
+          return;
+        }
+        toggle.classList.toggle("active", state.digitalDeliveryEnabled);
+        toggle.setAttribute("aria-pressed", String(state.digitalDeliveryEnabled));
+        $("digitalToggleState").textContent = state.digitalDeliveryEnabled ? "Đang bật" : "Đang tắt";
       }
 
       function renderHeroStrip() {
@@ -1336,6 +1840,7 @@
               <div class="meta-row">
                 <span class="tag">${item.shots_to_take} lần chụp</span>
                 <span class="tag">chọn ${item.slot_count}</span>
+                <span class="tag">dư ${state.config.shot_buffer_count} ảnh</span>
               </div>
             </div>
           `;
@@ -1349,24 +1854,28 @@
         state.captures = [];
         state.selectedCaptureIds = [];
         state.filterId = "natural";
-        state.selectedTemplateId = "";
+        state.selectedTemplateId = selectedPackageConfig()?.templates[0]?.id || "";
+        state.finalResult = null;
+        state.resultHasPrinted = false;
         showPayment();
       }
 
       function startPackageSelect() {
+        updateDigitalToggle();
         go("PACKAGE_SELECT");
         armSimpleTimeout(60, () => resetSession());
       }
 
       function showPayment() {
         const cfg = selectedPackageConfig();
-        $("paymentTitle").textContent = `Gói ${cfg.slot_count} ảnh`;
-        $("paymentText").textContent = `${money(cfg.price)} · ${cfg.shots_to_take} lần chụp · mã ${state.sessionId}`;
-        $("paymentStatus").textContent = "Đang xác nhận...";
-        drawQr("paymentQr", `PAY:${state.sessionId}:${cfg.price}`);
+        const digitalLabel = state.digitalDeliveryEnabled ? "kèm file số + video QR" : "chỉ in ảnh vật lý";
+        $("paymentTitle").textContent = `VietQR động · Gói ${cfg.slot_count} ảnh`;
+        $("paymentText").textContent = `${money(cfg.price)} · ${cfg.shots_to_take} lần chụp · mã ${state.sessionId} · ${digitalLabel}`;
+        $("paymentStatus").textContent = "Chờ webhook tự động xác nhận...";
+        drawQr("paymentQr", `VIETQR:${state.sessionId}:${cfg.price}:${state.digitalDeliveryEnabled ? "DIGITAL" : "PRINT"}`);
         go("PAYMENT");
         animateMeter("paymentMeter", state.config.payment_mock_seconds, () => {
-          $("paymentStatus").textContent = "Đã xác nhận";
+          $("paymentStatus").textContent = "Đã xác nhận thanh toán";
           rememberTimer(setTimeout(showReady, 250));
         });
       }
@@ -1374,7 +1883,7 @@
       function showReady() {
         const cfg = selectedPackageConfig();
         $("readyTitle").textContent = `Chuẩn bị chụp ${cfg.shots_to_take} kiểu`;
-        $("readyText").textContent = `Mỗi kiểu cách nhau ${state.config.countdown_seconds}s.`;
+        $("readyText").textContent = `Mỗi kiểu cách nhau ${state.config.countdown_seconds}s. ${state.digitalDeliveryEnabled ? "Timelapse sẽ được ghi song song." : "Gói này chỉ in ảnh vật lý."}`;
         go("GET_READY");
         rememberTimer(setTimeout(startCaptureSequence, state.config.get_ready_seconds * 1000));
       }
@@ -1382,13 +1891,26 @@
       async function startCaptureSequence() {
         go("CAPTURING");
         $("shotStrip").innerHTML = "";
+        $("captureProgress").style.transform = "scaleX(0)";
+        $("recordingBadge").classList.toggle("hidden", !state.digitalDeliveryEnabled);
+        $("captureDigitalStatus").textContent = state.digitalDeliveryEnabled
+          ? "Camera đang ghi timelapse nền."
+          : "File số và timelapse đang tắt cho phiên này.";
         state.captures = [];
         state.selectedCaptureIds = [];
+        startLiveTimelapseRecording();
+        let completed = false;
         try {
           await runCaptureSequence();
-          renderPhotoSelection();
+          completed = true;
         } catch (error) {
           showError("Camera chưa phản hồi", String(error.message || error), startCaptureSequence);
+        } finally {
+          stopLiveTimelapseRecording();
+        }
+
+        if (completed) {
+          renderPhotoSelection();
         }
       }
 
@@ -1397,12 +1919,14 @@
         for (let shot = 1; shot <= cfg.shots_to_take; shot += 1) {
           $("shotLabel").textContent = `Kiểu ${shot}/${cfg.shots_to_take}`;
           $("captureTitle").textContent = `Còn ${cfg.shots_to_take - shot + 1} kiểu`;
+          $("captureProgress").style.transform = `scaleX(${(shot - 1) / cfg.shots_to_take})`;
           await runShotCountdown(state.config.countdown_seconds);
           $("captureStatus").textContent = "Đang chụp...";
           triggerFlash();
           const capture = await captureWithRetry(2);
           state.captures.push(capture);
           appendShotThumb(capture, shot);
+          $("captureProgress").style.transform = `scaleX(${shot / cfg.shots_to_take})`;
           $("captureStatus").textContent = "Đẹp rồi, chuẩn bị kiểu tiếp theo";
         }
       }
@@ -1462,7 +1986,6 @@
 
       function renderPhotoSelection() {
         const cfg = selectedPackageConfig();
-        $("selectionCounter").textContent = `${state.selectedCaptureIds.length}/${cfg.slot_count}`;
         $("photosNextButton").disabled = true;
         $("photoGrid").innerHTML = "";
         state.captures.forEach((capture, index) => {
@@ -1490,7 +2013,7 @@
         } else if (state.selectedCaptureIds.length < cfg.slot_count) {
           state.selectedCaptureIds.push(captureId);
         } else {
-          $("selectionCounter").animate([{ transform: "scale(1)" }, { transform: "scale(1.08)" }, { transform: "scale(1)" }], 240);
+          $("photosNextButton").animate([{ transform: "scale(1)" }, { transform: "scale(1.08)" }, { transform: "scale(1)" }], 240);
         }
         updatePhotoSelection();
         armWarningTimeout(45, 15, "Tự chọn ảnh sau", () => {
@@ -1513,29 +2036,18 @@
             card.appendChild(badge);
           }
         });
-        $("selectionCounter").textContent = `${state.selectedCaptureIds.length}/${cfg.slot_count}`;
         $("photosNextButton").disabled = state.selectedCaptureIds.length !== cfg.slot_count;
       }
 
       function showFilterSelect() {
-        renderFilterPreview();
+        const cfg = selectedPackageConfig();
+        if (!state.selectedTemplateId) {
+          state.selectedTemplateId = cfg.templates[0]?.id || "";
+        }
         renderFilters();
+        refreshDesignPreview();
         go("FILTER_SELECT");
-        armWarningTimeout(30, 10, "Tự dùng Natural sau", () => {
-          state.filterId = "natural";
-          showFrameSelect();
-        });
-      }
-
-      function renderFilterPreview() {
-        const cssFilter = selectedFilter().css_filter;
-        $("selectedStrip").innerHTML = "";
-        selectedCaptures().forEach((capture, index) => {
-          const item = document.createElement("div");
-          item.className = "selected-preview";
-          item.innerHTML = `<img alt="Ảnh đã chọn ${index + 1}" src="${capture.preview_url}" style="filter:${cssFilter}" />`;
-          $("selectedStrip").appendChild(item);
-        });
+        armWarningTimeout(45, 10, "Tự dùng mẫu hiện tại sau", showResultScreen);
       }
 
       function renderFilters() {
@@ -1553,20 +2065,20 @@
           `;
           button.addEventListener("click", () => {
             state.filterId = filter.id;
-            renderFilterPreview();
             renderFilters();
-            armWarningTimeout(30, 10, "Tự dùng Natural sau", () => showFrameSelect());
+            refreshDesignPreview();
+            armWarningTimeout(45, 10, "Tự dùng mẫu hiện tại sau", showResultScreen);
           });
           $("filterRow").appendChild(button);
         });
       }
 
-      async function showFrameSelect() {
+      function renderFrameChoices() {
         const cfg = selectedPackageConfig();
-        $("frameGrid").innerHTML = "";
+        $("legacyFrameGrid").innerHTML = "";
         cfg.templates.forEach((template) => {
           const button = document.createElement("button");
-          button.className = "frame-card";
+          button.className = `frame-card ${template.id === state.selectedTemplateId ? "selected" : ""}`;
           button.type = "button";
           button.dataset.id = template.id;
           button.innerHTML = `
@@ -1576,16 +2088,13 @@
             <div class="frame-name">${template.name}</div>
           `;
           button.addEventListener("click", () => selectTemplate(template));
-          $("frameGrid").appendChild(button);
+          $("legacyFrameGrid").appendChild(button);
           loadCompositePreview(button, template);
         });
-        go("FRAME_SELECT");
-        armWarningTimeout(30, 10, "Tự chọn khung sau", () => {
-          const firstTemplate = selectedPackageConfig().templates[0];
-          if (firstTemplate) {
-            selectTemplate(firstTemplate);
-          }
-        });
+      }
+
+      async function showFrameSelect() {
+        showFilterSelect();
       }
 
       async function loadCompositePreview(button, template) {
@@ -1609,12 +2118,69 @@
         }
       }
 
-      async function selectTemplate(template) {
+      function selectTemplate(template) {
         state.selectedTemplateId = template.id;
-        go("FINAL_PREVIEW");
-        $("finalPreviewImage").removeAttribute("src");
+        refreshDesignPreview();
+        armWarningTimeout(45, 10, "Tự dùng mẫu hiện tại sau", showResultScreen);
+      }
+
+      async function refreshDesignPreview() {
+        const template = selectedTemplateConfig();
+        if (!template) {
+          $("designFrameName").textContent = "Chưa có khung";
+          $("designFilterName").textContent = selectedFilter().name;
+          return;
+        }
+
+        $("designSkeleton").classList.remove("hidden");
+        $("designFrameName").textContent = template.name;
+        $("designFilterName").textContent = selectedFilter().name;
         try {
           const response = await fetch(`/api/framebooth/templates/${template.id}/composite-preview`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ capture_ids: state.selectedCaptureIds, filter_id: state.filterId }),
+          });
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+          const blob = await response.blob();
+          if (state.designPreviewUrl) {
+            URL.revokeObjectURL(state.designPreviewUrl);
+          }
+          state.designPreviewUrl = URL.createObjectURL(blob);
+          $("designPreviewImage").src = state.designPreviewUrl;
+        } catch (error) {
+          $("designPreviewImage").src = template.preview_url;
+          console.warn(error);
+        } finally {
+          $("designSkeleton").classList.add("hidden");
+        }
+      }
+
+      async function showResultScreen() {
+        const template = selectedTemplateConfig();
+        if (!template) {
+          showError("Chưa có khung phù hợp", "Hãy thêm khung vào thư mục frame tương ứng rồi thử lại.", showFilterSelect);
+          return;
+        }
+
+        state.selectedTemplateId = template.id;
+        state.finalResult = null;
+        state.resultHasPrinted = false;
+        $("finalPreviewImage").removeAttribute("src");
+        $("printButton").disabled = false;
+        $("printButton").textContent = "In ngay";
+        $("printButton").classList.remove("hidden");
+        $("resultFinishButton").classList.add("hidden");
+        $("resultPrintMeter").style.transform = "scaleX(0)";
+        setPrintStatus("Sẵn sàng gửi lệnh in", false);
+        go("FINAL_PREVIEW");
+        startTimelapseRender();
+        updateResultQr();
+        $("finalPreviewImage").removeAttribute("src");
+        try {
+          const response = await fetch(`/api/framebooth/templates/${state.selectedTemplateId}/composite-preview`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ capture_ids: state.selectedCaptureIds, filter_id: state.filterId }),
@@ -1630,11 +2196,18 @@
           $("finalPreviewImage").src = state.finalPreviewUrl;
           armSimpleTimeout(30, printFinal);
         } catch (error) {
-          showError("Chưa tạo được preview", String(error.message || error), () => selectTemplate(template));
+          showError("Chưa tạo được preview", String(error.message || error), showResultScreen);
         }
       }
 
       async function printFinal() {
+        if (state.resultHasPrinted) {
+          return;
+        }
+        state.resultHasPrinted = true;
+        $("printButton").disabled = true;
+        $("printButton").textContent = "Đang in...";
+        setPrintStatus("Đang render ảnh và gửi lệnh in", false);
         try {
           const response = await fetch("/api/framebooth/render", {
             method: "POST",
@@ -1642,16 +2215,382 @@
             body: JSON.stringify({
               template_id: state.selectedTemplateId,
               capture_ids: state.selectedCaptureIds,
+              all_capture_ids: state.captures.map((capture) => capture.id),
               filter_id: state.filterId,
+              session_id: state.sessionId,
+              digital_delivery: state.digitalDeliveryEnabled,
             }),
           });
           if (!response.ok) {
             throw new Error(await response.text());
           }
           state.finalResult = await response.json();
-          showPrinting();
+          updateResultQr();
+          animateMeter("resultPrintMeter", state.config.printing_mock_seconds, () => {
+            setPrintStatus("Đã gửi lệnh in mock", true);
+            $("printButton").classList.add("hidden");
+            $("resultFinishButton").classList.remove("hidden");
+          });
         } catch (error) {
+          state.resultHasPrinted = false;
+          $("printButton").disabled = false;
+          $("printButton").textContent = "In ngay";
           showError("Chưa render được ảnh", String(error.message || error), printFinal);
+        }
+      }
+
+      function setPrintStatus(text, done) {
+        $("printStatusText").textContent = text;
+        $("printStatusDot").classList.toggle("done", Boolean(done));
+      }
+
+      function updateResultQr() {
+        const row = $("resultQrRow");
+        row.classList.toggle("disabled", !state.digitalDeliveryEnabled);
+
+        if (!state.digitalDeliveryEnabled) {
+          $("resultQrTitle").textContent = "File số đã tắt";
+          $("resultQrText").textContent = "Phiên này chỉ in ảnh vật lý, không tạo link tải.";
+          drawQr("resultQr", `OFF:${state.sessionId}`);
+          return;
+        }
+
+        if (!state.finalResult) {
+          $("resultQrTitle").textContent = "QR sẽ sẵn sàng sau khi in";
+          $("resultQrText").textContent = `Demo giữ link ${state.config.digital_delivery_retention_days} ngày khi nối Cloudflare R2.`;
+          drawQr("resultQr", `PENDING:${state.sessionId}`);
+          return;
+        }
+
+        const url = `${location.origin}${state.finalResult.download_url || state.finalResult.gallery_url}`;
+        $("resultQrTitle").textContent = "QR tải trọn bộ";
+        $("resultQrText").textContent = `Ảnh gốc HD + ảnh ghép + video timelapse. Hạn demo: ${state.finalResult.retention_days} ngày.`;
+        drawQr("resultQr", url);
+      }
+
+      function chooseTimelapseMimeType() {
+        if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) {
+          return "";
+        }
+        return ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((type) =>
+          MediaRecorder.isTypeSupported(type),
+        ) || "";
+      }
+
+      function clearTimelapseDrawTimer() {
+        if (state.timelapseDrawTimer) {
+          clearInterval(state.timelapseDrawTimer);
+          state.timelapseDrawTimer = null;
+        }
+      }
+
+      function stopLiveTimelapseRecording() {
+        clearTimelapseDrawTimer();
+        const recorder = state.timelapseRecorder;
+        state.timelapseRecorder = null;
+        if (!recorder) {
+          return;
+        }
+
+        if (recorder.state === "inactive") {
+          const resolveReady = state.timelapseReadyResolve;
+          state.timelapseReadyResolve = null;
+          resolveReady?.(Boolean(state.timelapseBlobUrl));
+          return;
+        }
+
+        try {
+          recorder.requestData?.();
+          recorder.stop();
+        } catch (error) {
+          const resolveReady = state.timelapseReadyResolve;
+          state.timelapseReadyResolve = null;
+          state.timelapseError = error;
+          resolveReady?.(false);
+          console.warn(error);
+        }
+      }
+
+      function discardTimelapseRecording() {
+        state.timelapseRecordingId += 1;
+        stopLiveTimelapseRecording();
+        if (state.timelapseBlobUrl) {
+          URL.revokeObjectURL(state.timelapseBlobUrl);
+        }
+        state.timelapseUrl = "";
+        state.timelapseBlobUrl = "";
+        state.timelapseChunks = [];
+        state.timelapseError = null;
+        state.timelapseReadyPromise = Promise.resolve(false);
+        state.timelapseReadyResolve = null;
+      }
+
+      function drawCoverImage(ctx, image, width, height) {
+        const sourceRatio = image.naturalWidth / image.naturalHeight;
+        const targetRatio = width / height;
+        let sx = 0;
+        let sy = 0;
+        let sw = image.naturalWidth;
+        let sh = image.naturalHeight;
+
+        if (sourceRatio > targetRatio) {
+          sw = sh * targetRatio;
+          sx = (image.naturalWidth - sw) / 2;
+        } else {
+          sh = sw / targetRatio;
+          sy = (image.naturalHeight - sh) / 2;
+        }
+
+        ctx.drawImage(image, sx, sy, sw, sh, 0, 0, width, height);
+      }
+
+      function drawLiveTimelapseFrame(source, canvas, ctx) {
+        const width = canvas.width;
+        const height = canvas.height;
+        ctx.fillStyle = "#050505";
+        ctx.fillRect(0, 0, width, height);
+        if (!source?.naturalWidth || !source?.naturalHeight) {
+          return false;
+        }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.filter = "none";
+        drawCoverImage(ctx, source, width, height);
+        return true;
+      }
+
+      function startLiveTimelapseRecording() {
+        discardTimelapseRecording();
+        if (!state.digitalDeliveryEnabled) {
+          return;
+        }
+
+        const canvas = $("timelapseCanvas");
+        const source = $("captureLiveImage");
+        if (!canvas?.captureStream || !window.MediaRecorder) {
+          state.timelapseError = new Error("Browser chưa hỗ trợ ghi video từ canvas");
+          return;
+        }
+
+        const ctx = canvas.getContext("2d", { alpha: false });
+        if (!ctx) {
+          state.timelapseError = new Error("Không mở được canvas timelapse");
+          return;
+        }
+
+        state.timelapseRecordingId += 1;
+        const recordingId = state.timelapseRecordingId;
+        const fps = 24;
+        const mimeType = chooseTimelapseMimeType();
+        const options = { videoBitsPerSecond: 2600000 };
+        if (mimeType) {
+          options.mimeType = mimeType;
+        }
+
+        let recorder;
+        let resolveReady = () => {};
+        state.timelapseChunks = [];
+        state.timelapseReadyPromise = new Promise((resolve) => {
+          resolveReady = resolve;
+          state.timelapseReadyResolve = resolve;
+        });
+
+        const finishReady = (value) => {
+          if (state.timelapseReadyResolve === resolveReady) {
+            state.timelapseReadyResolve = null;
+          }
+          resolveReady(value);
+        };
+
+        try {
+          const stream = canvas.captureStream(fps);
+          recorder = new MediaRecorder(stream, options);
+        } catch (error) {
+          state.timelapseError = error;
+          state.timelapseReadyPromise = Promise.resolve(false);
+          state.timelapseReadyResolve = null;
+          console.warn(error);
+          return;
+        }
+
+        recorder.ondataavailable = (event) => {
+          if (recordingId === state.timelapseRecordingId && event.data?.size) {
+            state.timelapseChunks.push(event.data);
+          }
+        };
+
+        recorder.onerror = (event) => {
+          if (recordingId !== state.timelapseRecordingId) {
+            return;
+          }
+          state.timelapseError = event.error || new Error("Recorder timelapse gặp lỗi");
+          state.timelapseChunks = [];
+        };
+
+        recorder.onstop = () => {
+          clearTimelapseDrawTimer();
+          if (recordingId !== state.timelapseRecordingId) {
+            finishReady(false);
+            return;
+          }
+
+          if (state.timelapseChunks.length === 0) {
+            finishReady(false);
+            return;
+          }
+
+          const blob = new Blob(state.timelapseChunks, { type: recorder.mimeType || mimeType || "video/webm" });
+          state.timelapseChunks = [];
+          if (!blob.size) {
+            finishReady(false);
+            return;
+          }
+
+          if (state.timelapseBlobUrl) {
+            URL.revokeObjectURL(state.timelapseBlobUrl);
+          }
+          state.timelapseBlobUrl = URL.createObjectURL(blob);
+          finishReady(true);
+        };
+
+        try {
+          drawLiveTimelapseFrame(source, canvas, ctx);
+          state.timelapseDrawTimer = setInterval(() => {
+            try {
+              drawLiveTimelapseFrame(source, canvas, ctx);
+            } catch (error) {
+              if (recordingId === state.timelapseRecordingId) {
+                state.timelapseError = error;
+                stopLiveTimelapseRecording();
+              }
+            }
+          }, Math.round(1000 / fps));
+          state.timelapseRecorder = recorder;
+          recorder.start(1000);
+        } catch (error) {
+          clearTimelapseDrawTimer();
+          state.timelapseRecorder = null;
+          state.timelapseError = error;
+          finishReady(false);
+          console.warn(error);
+        }
+      }
+
+      async function useRecordedTimelapse(video) {
+        if (state.timelapseReadyPromise) {
+          $("timelapseStatus").textContent = "Đang đóng video live-view";
+          $("timelapseMeter").style.transform = "scaleX(0.62)";
+          await state.timelapseReadyPromise.catch(() => false);
+        }
+
+        if (!state.timelapseBlobUrl) {
+          return false;
+        }
+
+        state.timelapseUrl = state.timelapseBlobUrl;
+        video.src = state.timelapseBlobUrl;
+        video.defaultPlaybackRate = 4;
+        video.playbackRate = 4;
+        video.load();
+        await new Promise((resolve) => {
+          if (video.readyState >= 1) {
+            resolve();
+            return;
+          }
+          const timeout = setTimeout(resolve, 1600);
+          video.onloadedmetadata = () => {
+            clearTimeout(timeout);
+            resolve();
+          };
+        });
+        video.playbackRate = 4;
+        await video.play().catch(() => {});
+        $("timelapseMeter").style.transform = "scaleX(1)";
+        $("timelapseDot").classList.add("done");
+        $("resultVideoTitle").textContent = "Video timelapse";
+        $("timelapseStatus").textContent = "Live-view đang phát 4x";
+        $("timelapseSpeed").textContent = "4x";
+        return true;
+      }
+
+      async function renderStillTimelapseFallback(captures, video) {
+        if (captures.length < 2) {
+          $("resultVideoTitle").textContent = "Chưa có video";
+          $("timelapseStatus").textContent = "Không đủ dữ liệu";
+          $("timelapseDot").classList.add("off");
+          return;
+        }
+
+        $("resultVideoTitle").textContent = "Đang dựng video";
+        $("timelapseStatus").textContent = "Dùng fallback ảnh tĩnh";
+        $("timelapseMeter").style.transform = "scaleX(0.35)";
+
+        try {
+          const response = await fetch("/api/framebooth/timelapse", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              capture_ids: captures.map((capture) => capture.id),
+              filter_id: state.filterId,
+              session_id: state.sessionId,
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+          const result = await response.json();
+          state.timelapseUrl = `${result.video_url}?v=${Date.now()}`;
+          video.src = state.timelapseUrl;
+          video.defaultPlaybackRate = 1;
+          video.playbackRate = 1;
+          video.load();
+          await video.play().catch(() => {});
+          $("timelapseMeter").style.transform = "scaleX(1)";
+          $("timelapseDot").classList.add("done");
+          $("resultVideoTitle").textContent = "Video fallback";
+          $("timelapseStatus").textContent = "Fallback từ ảnh tĩnh";
+          $("timelapseSpeed").textContent = "4x";
+        } catch (error) {
+          $("timelapseMeter").style.transform = "scaleX(0)";
+          $("timelapseStatus").textContent = "Chưa dựng được video";
+          $("timelapseDot").classList.add("off");
+          console.warn(error);
+        }
+      }
+
+      async function startTimelapseRender() {
+        const captures = state.captures.length > 0 ? state.captures : selectedCaptures();
+        const firstCapture = captures[0];
+        const video = $("timelapseVideo");
+        $("timelapseMeter").style.transform = "scaleX(0)";
+        $("timelapseDot").classList.remove("done", "off");
+        $("timelapseSpeed").textContent = "4x";
+        video.pause();
+        video.removeAttribute("src");
+        video.poster = firstCapture?.preview_url || "";
+        video.load();
+
+        if (!state.digitalDeliveryEnabled) {
+          $("resultVideoTitle").textContent = "Timelapse đang tắt";
+          $("timelapseStatus").textContent = "Không tạo video";
+          $("timelapseDot").classList.add("off");
+          return;
+        }
+
+        if (!firstCapture) {
+          $("resultVideoTitle").textContent = "Chưa có ảnh";
+          $("timelapseStatus").textContent = "Chờ ảnh chụp";
+          return;
+        }
+
+        $("resultVideoTitle").textContent = "Đang mở timelapse";
+        $("timelapseStatus").textContent = "Chuẩn bị live-view 4x";
+        $("timelapseMeter").style.transform = "scaleX(0.25)";
+
+        const hasRecordedVideo = await useRecordedTimelapse(video);
+        if (!hasRecordedVideo) {
+          await renderStillTimelapseFallback(captures, video);
         }
       }
 
@@ -1771,7 +2710,10 @@
           startPackageSelect();
         }
       });
-      $("restartTop").addEventListener("click", resetSession);
+      $("digitalToggle").addEventListener("click", () => {
+        state.digitalDeliveryEnabled = !state.digitalDeliveryEnabled;
+        updateDigitalToggle();
+      });
       $("startNow").addEventListener("click", startCaptureSequence);
       $("retakeButton").addEventListener("click", () => {
         state.selectedCaptureIds = [];
@@ -1779,11 +2721,12 @@
       });
       $("photosNextButton").addEventListener("click", showFilterSelect);
       $("backToPhotos").addEventListener("click", renderPhotoSelection);
-      $("filterNextButton").addEventListener("click", showFrameSelect);
+      $("filterNextButton").addEventListener("click", showResultScreen);
       $("backToFilter").addEventListener("click", showFilterSelect);
       $("editFrameButton").addEventListener("click", showFrameSelect);
       $("printButton").addEventListener("click", printFinal);
       $("finishButton").addEventListener("click", showThankYou);
+      $("resultFinishButton").addEventListener("click", showThankYou);
       $("errorRetry").addEventListener("click", () => {
         hideError();
         state.errorRetry?.();

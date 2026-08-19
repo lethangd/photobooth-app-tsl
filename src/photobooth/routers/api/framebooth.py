@@ -23,15 +23,18 @@ logger = logging.getLogger(__name__)
 
 FRAME_DIR = Path(__file__).resolve().parents[2] / "frame"
 CAPTURE_DIR = Path(TMP_PATH) / "framebooth"
+TIMELAPSE_DIR = CAPTURE_DIR / "timelapse"
 SUPPORTED_FRAME_TYPES = (2, 3, 4)
 
 SHOT_BUFFER_COUNT = 2
-CAPTURE_COUNTDOWN_SECONDS = 3
+CAPTURE_COUNTDOWN_SECONDS = 10
 GET_READY_DURATION_SECONDS = 3
 PAYMENT_MOCK_SECONDS = 2
 PRINTING_MOCK_SECONDS = 3
 QR_DOWNLOAD_SECONDS = 8
 THANK_YOU_SECONDS = 5
+DIGITAL_DELIVERY_RETENTION_DAYS = 7
+TIMELAPSE_RENDER_MOCK_SECONDS = 6
 PRICING = {2: 50_000, 3: 70_000, 4: 90_000}
 
 
@@ -56,7 +59,10 @@ class FrameTemplate(BaseModel):
 class RenderRequest(BaseModel):
     template_id: str
     capture_ids: list[UUID] = Field(min_length=1)
+    all_capture_ids: list[UUID] = Field(default_factory=list)
     filter_id: str = "natural"
+    session_id: str | None = None
+    digital_delivery: bool = True
 
 
 class PreviewRequest(BaseModel):
@@ -64,7 +70,14 @@ class PreviewRequest(BaseModel):
     filter_id: str = "natural"
 
 
+class TimelapseRequest(BaseModel):
+    capture_ids: list[UUID] = Field(min_length=2)
+    filter_id: str = "natural"
+    session_id: str | None = None
+
+
 CAPTURES: dict[UUID, Path] = {}
+TIMELAPSES: dict[UUID, Path] = {}
 
 FILTERS = [
     {"id": "natural", "name": "Natural", "css_filter": "none"},
@@ -282,6 +295,60 @@ def _render_preview_response(image: Image.Image) -> StreamingResponse:
     return StreamingResponse(output, media_type="image/jpeg")
 
 
+def _validate_capture_paths(capture_ids: list[UUID]) -> list[Path]:
+    capture_paths = []
+    for capture_id in capture_ids:
+        path = CAPTURES.get(capture_id)
+        if not path or not path.is_file():
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"capture {capture_id} not found")
+        capture_paths.append(path)
+    return capture_paths
+
+
+def _video_frame_from_capture(capture_path: Path, size: tuple[int, int], filter_id: str) -> np.ndarray:
+    with Image.open(capture_path) as image:
+        image = ImageOps.exif_transpose(image)
+        image = _apply_filter(image, filter_id)
+        image = ImageOps.fit(image, size, method=Image.Resampling.BICUBIC).convert("RGB")
+        rgb = np.asarray(image)
+    return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+
+
+def _render_timelapse_video(capture_paths: list[Path], filter_id: str) -> Path:
+    if filter_id not in {filter_config["id"] for filter_config in FILTERS}:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "filter not found")
+
+    TIMELAPSE_DIR.mkdir(parents=True, exist_ok=True)
+    timelapse_id = uuid4()
+    output_path = TIMELAPSE_DIR / f"{timelapse_id}.webm"
+
+    fps = 30
+    size = (1280, 720)
+    hold_frames = 13
+    transition_frames = 12
+    frames = [_video_frame_from_capture(path, size, filter_id) for path in capture_paths]
+
+    writer = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*"VP80"), fps, size)
+    if not writer.isOpened():
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "timelapse video encoder is not available")
+
+    try:
+        for index, frame in enumerate(frames):
+            for _ in range(hold_frames):
+                writer.write(frame)
+
+            next_frame = frames[(index + 1) % len(frames)]
+            for step in range(transition_frames):
+                weight = (step + 1) / (transition_frames + 1)
+                blended = cv2.addWeighted(frame, 1 - weight, next_frame, weight, 0)
+                writer.write(blended)
+    finally:
+        writer.release()
+
+    TIMELAPSES[timelapse_id] = output_path
+    return output_path
+
+
 @router.get("/config")
 def api_get_framebooth_config():
     templates = _get_templates()
@@ -306,6 +373,8 @@ def api_get_framebooth_config():
         "printing_mock_seconds": PRINTING_MOCK_SECONDS,
         "qr_download_seconds": QR_DOWNLOAD_SECONDS,
         "thank_you_seconds": THANK_YOU_SECONDS,
+        "digital_delivery_retention_days": DIGITAL_DELIVERY_RETENTION_DAYS,
+        "timelapse_render_mock_seconds": TIMELAPSE_RENDER_MOCK_SECONDS,
         "filters": [_filter_to_public(filter_config) for filter_config in FILTERS],
         "frame_types": frame_types,
     }
@@ -356,6 +425,28 @@ def api_get_capture(capture_id: UUID):
     return FileResponse(path)
 
 
+@router.post("/timelapse")
+def api_render_timelapse(request: TimelapseRequest):
+    capture_paths = _validate_capture_paths(request.capture_ids)
+    output_path = _render_timelapse_video(capture_paths, request.filter_id)
+    timelapse_id = UUID(output_path.stem)
+
+    return {
+        "id": str(timelapse_id),
+        "video_url": f"/api/framebooth/timelapses/{timelapse_id}",
+        "status": "ready",
+    }
+
+
+@router.get("/timelapses/{timelapse_id}")
+def api_get_timelapse(timelapse_id: UUID):
+    path = TIMELAPSES.get(timelapse_id)
+    if not path or not path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "timelapse not found")
+
+    return FileResponse(path, media_type="video/webm")
+
+
 @router.post("/render")
 def api_render_collage(request: RenderRequest):
     template, capture_paths = _validate_render_request(request)
@@ -374,6 +465,9 @@ def api_render_collage(request: RenderRequest):
             "template_id": template.id,
             "filter_id": request.filter_id,
             "capture_ids": [str(capture_id) for capture_id in request.capture_ids],
+            "all_capture_ids": [str(capture_id) for capture_id in request.all_capture_ids],
+            "session_id": request.session_id,
+            "digital_delivery": request.digital_delivery,
         },
         show_in_gallery=True,
     )
@@ -383,4 +477,7 @@ def api_render_collage(request: RenderRequest):
         "id": str(mediaitem.id),
         "media_url": f"/media/full/{mediaitem.id}",
         "gallery_url": f"/gallery/mediaviewer/{mediaitem.id}",
+        "download_url": f"/gallery/mediaviewer/{mediaitem.id}",
+        "retention_days": DIGITAL_DELIVERY_RETENTION_DAYS,
+        "timelapse_status": "mock_ready" if request.digital_delivery else "disabled",
     }
