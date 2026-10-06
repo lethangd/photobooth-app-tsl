@@ -7,7 +7,6 @@ from pathlib import Path
 from threading import Lock
 
 import serial.tools.list_ports
-from rclone_api.api import RcloneApi
 
 logger = logging.getLogger(__name__)
 
@@ -119,14 +118,3 @@ def dslr_gphoto2() -> list[int]:
             logger.info(f"found camera - {index}:  {addr}  {name}")
 
         return available_indexes
-
-
-def rclone_remotes() -> list[str]:
-    with enumerate_lock:
-        rclone_api = RcloneApi(bind="localhost:5574", config_file=Path("./config/rclone.conf"))
-        rclone_api.start()
-        remotes = rclone_api.config_listremotes().remotes
-        rclone_api.stop()
-        logger.info(f"got remotes: {remotes}")
-
-        return remotes

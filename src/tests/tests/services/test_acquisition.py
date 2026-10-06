@@ -1,6 +1,5 @@
 import io
 import logging
-import time
 from collections.abc import Generator
 from unittest import mock
 from unittest.mock import patch
@@ -43,16 +42,6 @@ def test_get_multicam_files(_acqs: AcquisitionService):
         with Image.open(image) as img:
             logger.info(img)
             img.verify()
-
-
-def test_getvideo(_acqs: AcquisitionService):
-    """get video from service"""
-    videopath = _acqs.start_recording()
-    time.sleep(2)
-    _acqs.stop_recording()
-
-    logger.info(f"video stored to file {videopath}")
-    assert videopath and videopath.is_file()
 
 
 def test_simulated_init_exceptions(_acqs: AcquisitionService):

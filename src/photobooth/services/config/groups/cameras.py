@@ -53,86 +53,6 @@ class GroupCameraVirtual(BaseModelCamera):
     )
 
 
-class GroupCameraPicamera2(BaseModelCamera):
-    model_config = ConfigDict(title="Picamera2")
-    backend_type: Literal["Picamera2"] = "Picamera2"
-
-    camera_num: int = Field(
-        default=0,
-        description="Camera number. Usually 0 or 1.",
-    )
-    CAPTURE_CAM_RESOLUTION_WIDTH: int = Field(
-        default=4608,
-        description="camera resolution width to capture high resolution photo",
-    )
-    CAPTURE_CAM_RESOLUTION_HEIGHT: int = Field(
-        default=2592,
-        description="camera resolution height to capture high resolution photo",
-    )
-    PREVIEW_CAM_RESOLUTION_WIDTH: int = Field(
-        default=2304,
-        ge=500,
-        le=3500,  # hardware encoder in pi only supports max 4000 width/height
-        description="camera resolution width to capture live video",
-    )
-    PREVIEW_CAM_RESOLUTION_HEIGHT: int = Field(
-        default=1296,
-        ge=500,
-        le=2500,  # hardware encoder in pi only supports max 4000 width/height
-        description="camera resolution height to capture live video",
-    )
-    LIVEVIEW_RESOLUTION_WIDTH: int = Field(
-        default=1152,
-        ge=500,
-        le=3500,  # hardware encoder in pi only supports max 4000 width/height
-        description="actual resolution width for liveview stream",
-        json_schema_extra={"computeIntense": True},
-    )
-    LIVEVIEW_RESOLUTION_HEIGHT: int = Field(
-        default=648,
-        ge=500,
-        le=2500,  # hardware encoder in pi only supports max 4000 width/height
-        description="actual resolution height for liveview stream",
-        json_schema_extra={"computeIntense": True},
-    )
-    framerate_still_mode: int = Field(
-        default=10,
-        ge=5,
-        le=30,
-        description="Framerate of the camera when in still capture mode.",
-        json_schema_extra={"ui_schema_extra": {"slider": True}},
-    )
-    framerate_video_mode: int = Field(
-        default=25,
-        ge=5,
-        le=30,
-        description="Framerate of the camera when in video mode or idle.",
-        json_schema_extra={"ui_schema_extra": {"slider": True}},
-    )
-    frame_skip_count: int = Field(
-        default=2,
-        ge=1,
-        le=4,
-        description="Reduce the framerate_video_mode by frame_skip_count to save cpu/gpu on producing device as well as client devices. Choose 1 to emit every produced frame.",
-        json_schema_extra={"computeIntense": True, "ui_schema_extra": {"slider": True}},
-    )
-    optimized_lowlight_short_exposure: bool = Field(
-        default=False,
-        description="Raise AnalogueGain(=ISO) preferred before longer shutter times to avoid unsharp capture of moving people.",
-    )
-    videostream_quality: Literal["VERY_LOW", "LOW", "MEDIUM", "HIGH", "VERY_HIGH"] = Field(
-        default="MEDIUM",
-        description="Lower quality results in less data to be transferred and may reduce load on devices.",
-    )
-    original_still_quality: int = Field(
-        default=90,
-        ge=10,
-        le=100,
-        description="Picamera produces original files, this is the quality for the JPG.",
-        json_schema_extra={"ui_schema_extra": {"slider": True}},
-    )
-
-
 class Gphoto2Parameters(BaseModel):
     """Configure different settings when switching between modes."""
 
@@ -293,64 +213,16 @@ class GroupCameraDigicamcontrol(BaseModelCamera):
     )
 
 
-class WigglecamNodes(BaseModel):
-    model_config = ConfigDict(title="Each camera is hooked to a node.")
-
-    # enable: bool = Field(
-    #     default=True,
-    #     description="Enable node. Calibration might be invalid if chaning the nodes.",
-    # )
-    description: str = Field(
-        default="",
-        description="Description just for you to distinguish the devices.",
-    )
-    address: str = Field(
-        default="0.0.0.0",
-        description="Host or IP address to connect to the node.",
-    )
-    base_port: int = Field(
-        default=5550,
-        description="Base port to connect to the node.",
-    )
-
-
-class GroupCameraWigglecam(BaseModelCamera):
-    model_config = ConfigDict(title="Wigglecam")
-
-    backend_type: Literal["Wigglecam"] = "Wigglecam"
-
-    index_cam_stills: int = Field(
-        default=0,
-        description="Index of one node below to capture stills.",
-    )
-    index_cam_video: int = Field(
-        default=0,
-        description="Index of one backend below to capture live preview and video.",
-    )
-
-    devices: list[WigglecamNodes] = Field(
-        description="List all nodes to connect to the app. The list is considered as indexed list starting at 0. So the first node should have device_id=0. For 4 cameras you end up with 4 entries in the list and need to assign them device_id's 0,1,2,3.",
-        default=[
-            WigglecamNodes(description="wiggle0_device-id=0", address="wiggle0"),
-            WigglecamNodes(description="wiggle1_device-id=1", address="wiggle1"),
-            WigglecamNodes(description="wiggle2_device-id=2", address="wiggle2"),
-            WigglecamNodes(description="wiggle3_device-id=3", address="wiggle3"),
-        ],
-    )
-
-
-BackendsBase = GroupCameraVirtual | GroupCameraPyav | GroupCameraWigglecam
-BackendsLinux = GroupCameraPicamera2 | GroupCameraV4l2 | GroupCameraGphoto2
-BackendsWindows = GroupCameraDigicamcontrol
-BackendsDarwin = GroupCameraGphoto2
+# Supported camera backends: VirtualCamera + WebcamPyav everywhere, plus a tethered
+# DSLR/Mirrorless controller per platform (gphoto2 on Linux/macOS, digiCamControl on Windows)
+# and V4L2 webcams on Linux.
+BackendsBase = GroupCameraVirtual | GroupCameraPyav
 if sys.platform == "win32":
-    BackendsPlatform = BackendsBase | BackendsWindows
+    BackendsPlatform = BackendsBase | GroupCameraDigicamcontrol
 elif sys.platform == "linux":
-    BackendsPlatform = BackendsBase | BackendsLinux
-elif sys.platform == "darwin":
-    BackendsPlatform = BackendsBase | BackendsDarwin
+    BackendsPlatform = BackendsBase | GroupCameraV4l2 | GroupCameraGphoto2
 else:
-    BackendsPlatform = BackendsBase
+    BackendsPlatform = BackendsBase | GroupCameraGphoto2
 
 
 class GroupBackend(BaseModel):

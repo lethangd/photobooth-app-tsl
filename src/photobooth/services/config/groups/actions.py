@@ -1,11 +1,11 @@
 from pathlib import Path
 from typing import Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, FilePath, NonNegativeInt
+from pydantic import BaseModel, ConfigDict, Field, FilePath
 from pydantic_extra_types.color import Color
 
 from ..models.frameoverlay import FrameOverlay
-from ..models.models import AnimationMergeDefinition, CollageMergeDefinition, PluginFilters, TextsConfig
+from ..models.models import CollageMergeDefinition, PluginFilters, TextsConfig
 from ..models.trigger import GpioTrigger, KeyboardTrigger, Trigger, UiTrigger
 
 
@@ -50,39 +50,6 @@ class MultiImageJobControl(BaseModel):
     approve_autoconfirm_timeout: float = Field(
         default=15.0,
         description="If user is required to approve collage captures, after this timeout, the job continues and user confirmation is assumed.",
-    )
-
-    show_individual_captures_in_gallery: bool = Field(
-        default=False,
-        description="Show individual captures in the gallery. Hidden captures are still stored in the data folder. (Note: changing this setting will not change visibility of already captured images).",
-    )
-
-
-class VideoJobControl(BaseModel):
-    """Configure job control affecting the procedure."""
-
-    model_config = ConfigDict(title="Job control for video captures")
-
-    countdown_capture: float = Field(
-        default=2.0,
-        multiple_of=0.1,
-        ge=0,
-        le=20,
-        description="Countdown in seconds, when user starts a capture process.",
-    )
-
-
-class MulticameraJobControl(BaseModel):
-    """Configure job control affecting the procedure."""
-
-    model_config = ConfigDict(title="Job control for wigglegram-multicamera captures")
-
-    countdown_capture: float = Field(
-        default=2.0,
-        multiple_of=0.1,
-        ge=0,
-        le=20,
-        description="Countdown in seconds, when user starts a capture process.",
     )
 
     show_individual_captures_in_gallery: bool = Field(
@@ -220,70 +187,6 @@ class CollageProcessing(BaseModel):
     )
 
 
-class AnimationProcessing(BaseModel):
-    """Configure stages how to process collage after capture."""
-
-    model_config = ConfigDict(title="Process animated images processing after capture")
-
-    ## phase 2 per collage settings.
-
-    canvas_width: int = Field(
-        default=1500,
-        description="Width (X) in pixel for the resulting animated image. The higher the better the quality but also longer time to process. All processes keep aspect ratio.",
-    )
-    canvas_height: int = Field(
-        default=900,
-        description="Height (Y) in pixel for the resulting animated image. The higher the better the quality but also longer time to process. All processes keep aspect ratio.",
-    )
-    merge_definition: list[AnimationMergeDefinition] = Field(
-        default=[],
-        description="Sequence captures and predefined images to line up in the resulting animated image. Predefined images are used instead a camera capture. File needs to be located in working directory/userdata/*",
-    )
-
-
-class VideoProcessing(BaseModel):
-    """Configure stages how to process collage after capture."""
-
-    model_config = ConfigDict(title="Video Processing")
-
-    video_duration: int = Field(
-        default=5,
-        description="Maximum duration of the video. Users can stop earlier or capture is automatically stopped after set time.",
-    )
-    boomerang: bool = Field(
-        default=False,
-        description="Create boomerang videos, the video is replayed reverse automatically.",
-    )
-    boomerang_speed: float = Field(
-        default=1,
-        ge=0.5,
-        le=2,
-        description="Speed up the resulting boomerang. 1 is normal speed, 2 is double.",
-    )
-    video_framerate: int = Field(
-        default=25,
-        ge=1,
-        le=30,
-        description="Video framerate (frames per second).",
-    )
-
-
-class MulticameraProcessing(BaseModel):
-    """Configure stages how to process collage after capture."""
-
-    model_config = ConfigDict(title="Wigglegram-multicamera processing")
-
-    duration: NonNegativeInt = Field(
-        default=125,
-        ge=100,
-        le=500,
-        description="Duration of each frame in milliseconds. Wigglegrams look good usually between 100-200ms duration.",
-    )
-    image_filter: PluginFilters = Field(
-        default=PluginFilters("original"),
-    )
-
-
 t_JOBCONTROL = TypeVar("t_JOBCONTROL")
 t_PROCESSING = TypeVar("t_PROCESSING")
 
@@ -302,7 +205,7 @@ def _collage_processing(
     canvas_height: int,
     frame_file: Path,
     slots: list[tuple[str, int, int, int, int]],
-) -> CollageProcessing:
+) -> "CollageProcessing":
     return CollageProcessing(
         capture_remove_background=False,
         capture_fill_background_enable=False,
@@ -372,27 +275,9 @@ class CollageConfigurationSet(BaseConfigurationSet[MultiImageJobControl, Collage
     model_config = ConfigDict(title="Postprocess collage captures")
 
 
-class AnimationConfigurationSet(BaseConfigurationSet[MultiImageJobControl, AnimationProcessing]):
-    """Configure stages how to process images after capture."""
-
-    model_config = ConfigDict(title="Postprocess animation captures")
-
-
-class VideoConfigurationSet(BaseConfigurationSet[VideoJobControl, VideoProcessing]):
-    """Configure stages how to process images after capture."""
-
-    model_config = ConfigDict(title="Postprocess video captures")
-
-
-class MulticameraConfigurationSet(BaseConfigurationSet[MulticameraJobControl, MulticameraProcessing]):
-    """Configure stages how to process images after capture."""
-
-    model_config = ConfigDict(title="Postprocess multicamera captures")
-
-
 class GroupActions(BaseModel):
     """
-    Configure actions like capture photo, video, collage and animations.
+    Configure capture actions: single images and collages.
     """
 
     model_config = ConfigDict(title="Actions configuration")
@@ -475,72 +360,4 @@ class GroupActions(BaseModel):
             ),
         ],
         description="Capture collages consist of one or more still images.",
-    )
-
-    animation: list[AnimationConfigurationSet] = Field(
-        default=[
-            AnimationConfigurationSet(
-                jobcontrol=MultiImageJobControl(
-                    ask_approval_each_capture=False,
-                    show_individual_captures_in_gallery=False,
-                    countdown_capture_second_following=0.5,
-                ),
-                processing=AnimationProcessing(
-                    canvas_width=1500,
-                    canvas_height=900,
-                    merge_definition=[
-                        AnimationMergeDefinition(image_filter=PluginFilters("FilterPilgram2.crema")),
-                        AnimationMergeDefinition(image_filter=PluginFilters("FilterPilgram2.inkwell")),
-                        AnimationMergeDefinition(),
-                        AnimationMergeDefinition(),
-                        AnimationMergeDefinition(
-                            duration=4000,
-                            image_filter=PluginFilters("original"),
-                            predefined_image=Path("userdata/demoassets/predefined_images/photobooth-gif-animation-predefined-image.png"),
-                        ),
-                    ],
-                ),
-                trigger=Trigger(
-                    ui_trigger=UiTrigger(title="Animation", icon="animated_images"),
-                    gpio_trigger=GpioTrigger(pin="24"),
-                    keyboard_trigger=KeyboardTrigger(keycode="g"),
-                ),
-            ),
-        ],
-        description="Capture an animation consisting of one or more still images. It's not a video but a low number of still images.",
-    )
-
-    video: list[VideoConfigurationSet] = Field(
-        default=[
-            VideoConfigurationSet(
-                jobcontrol=VideoJobControl(),
-                processing=VideoProcessing(
-                    video_duration=5,
-                    boomerang=True,
-                    boomerang_speed=2,
-                    video_framerate=15,
-                ),
-                trigger=Trigger(
-                    ui_trigger=UiTrigger(title="Boomerang", icon="movie"),
-                    gpio_trigger=GpioTrigger(pin="25"),
-                    keyboard_trigger=KeyboardTrigger(keycode="v"),
-                ),
-            ),
-        ],
-        description="Capture videos from live streaming backend.",
-    )
-
-    multicamera: list[MulticameraConfigurationSet] = Field(
-        default=[
-            MulticameraConfigurationSet(
-                jobcontrol=MulticameraJobControl(),
-                processing=MulticameraProcessing(),
-                trigger=Trigger(
-                    ui_trigger=UiTrigger(title="Wigglegram", icon="3d"),
-                    gpio_trigger=GpioTrigger(pin="12"),
-                    keyboard_trigger=KeyboardTrigger(keycode="w"),
-                ),
-            ),
-        ],
-        description="Capture wigglegrams from a multicamera backend.",
     )

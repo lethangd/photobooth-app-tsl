@@ -57,14 +57,3 @@ class CollageMergeDefinition(BaseModel):
     image_filter: PluginFilters = Field(
         default=PluginFilters("original"),
     )
-
-
-class AnimationMergeDefinition(BaseModel):
-    duration: NonNegativeInt = 2000
-    predefined_image: FilePath | None = Field(
-        default=None,
-        json_schema_extra={"list_api": "/api/admin/enumerate/userfiles"},
-    )
-    image_filter: PluginFilters = Field(
-        default=PluginFilters("original"),
-    )

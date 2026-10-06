@@ -5,14 +5,12 @@ manage up to two photobooth-app backends in this module
 import dataclasses
 import logging
 from importlib import import_module
-from pathlib import Path
 from typing import Literal
 
 from ..appconfig import appconfig
 from ..plugins import pm as pluggy_pm
 from ..utils.exceptions import BackendNotRunning
 from .backends.abstractbackend import AbstractBackend
-from .backends.encoder.video import SoftwareVideoRecorder
 from .base import BaseService
 
 logger = logging.getLogger(f"{__name__}-app")
@@ -23,7 +21,6 @@ class AcquisitionService(BaseService):
         super().__init__()
 
         self._backends: list[AbstractBackend] = []
-        self._recorder: SoftwareVideoRecorder | None = None
 
     def start(self):
         super().start()
@@ -54,8 +51,6 @@ class AcquisitionService(BaseService):
 
         for backend in self._backends:
             backend.start()
-
-        self._recorder = SoftwareVideoRecorder(self._video_backend)
 
         super().started()
 
@@ -99,11 +94,6 @@ class AcquisitionService(BaseService):
         pluggy_pm.hook.acq_thrill()
         pluggy_pm.hook.acq_thrill_still()
 
-    def thrill_video(self):
-        """called by job processor when a countdown for video is started"""
-        pluggy_pm.hook.acq_thrill()
-        pluggy_pm.hook.acq_thrill_video()
-
     def thrill_multicam(self):
         """called by job processor when a countdown for multicam is started"""
         pluggy_pm.hook.acq_thrill()
@@ -144,22 +134,6 @@ class AcquisitionService(BaseService):
         finally:
             # ensure even if failed, the wled is set to standby again
             pluggy_pm.hook.acq_after_shot()
-
-    def start_recording(self, video_framerate: int = 25) -> Path:
-        assert self._recorder, "service needs to be started before using the recorder"
-
-        pluggy_pm.hook.acq_before_shot()
-        pluggy_pm.hook.acq_before_get_video()
-
-        file = self._recorder.start_recording(video_framerate)
-        return file
-
-    def stop_recording(self):
-        assert self._recorder, "service needs to be started before using the recorder"
-
-        pluggy_pm.hook.acq_after_shot()
-
-        self._recorder.stop_recording()
 
     @staticmethod
     def _import_backend(backend: str):

@@ -1,0 +1,41 @@
+import { fileURLToPath, URL } from "node:url";
+
+import vue from "@vitejs/plugin-vue";
+import { defineConfig } from "vite";
+
+// The Python backend that serves the API + media during local development.
+const BACKEND = process.env.KIOSK_BACKEND ?? "http://127.0.0.1:8000";
+const backendProxy = { target: BACKEND, changeOrigin: true };
+
+// Build output goes straight into the FastAPI static dir next to the (still
+// committed) "Classic" SPA. emptyOutDir MUST stay false so we never wipe
+// assets/, icons/, favicon.ico or index.html that belong to Classic.
+export default defineConfig({
+  plugins: [vue()],
+  base: "/",
+  resolve: {
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+  },
+  build: {
+    outDir: fileURLToPath(new URL("../src/web/frontend", import.meta.url)),
+    emptyOutDir: false,
+    rollupOptions: {
+      input: { framebooth: fileURLToPath(new URL("./framebooth.html", import.meta.url)) },
+      output: {
+        entryFileNames: "kiosk/[name]-[hash].js",
+        chunkFileNames: "kiosk/[name]-[hash].js",
+        assetFileNames: "kiosk/[name]-[hash][extname]",
+      },
+    },
+  },
+  server: {
+    port: 5273,
+    proxy: {
+      "/api": backendProxy,
+      "/media": backendProxy,
+      "/gallery": backendProxy,
+      "/userdata": backendProxy,
+      "/private.css": backendProxy,
+    },
+  },
+});

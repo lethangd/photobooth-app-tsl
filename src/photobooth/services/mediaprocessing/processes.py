@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import shutil
 import traceback
 from pathlib import Path
 
@@ -11,22 +10,19 @@ from ...appconfig import appconfig
 from ...database.models import Mediaitem
 from ...utils.media_encode import encode
 from ...utils.metrics_timer import MetricsTimer
-from ..config.groups.actions import AnimationProcessing, CollageProcessing, MulticameraProcessing, SingleImageProcessing, VideoProcessing
-from .context import AnimationContext, CollageContext, ImageContext, MulticameraContext, VideoContext
+from ..config.groups.actions import CollageProcessing, SingleImageProcessing
+from .context import CollageContext, ImageContext
 from .pipeline import NextStep, Pipeline, PipelineStep
-from .steps.animation import AlignSizesStep
 from .steps.animation_collage_shared import AddPredefinedImagesStep, PostPredefinedImagesStep
 from .steps.collage import MergeCollageStep
 from .steps.image import FillBackgroundStep, ImageFrameStep, ImageMountStep, PluginFilterStep, RemovebgStep, TextStep
-from .steps.multicamera import AlignAsPerCalibrationStep
-from .steps.video import BoomerangStep
 
 logger = logging.getLogger(__name__)
 
 
 def process_image_inner(file_in: Path, config: SingleImageProcessing, preview: bool):
     """
-    Unified handling of images that are just one single capture: 1pictaken (singleimages) and stills that are used in collages or animation
+    Unified handling of images that are just one single capture: 1pictaken (singleimages) and stills that are used in collages
     Since config is different and also can depend on the current number of the image in the capture sequence,
     the config has to be determined externally.
 
@@ -94,28 +90,6 @@ def process_phase1images(file_in: Path, mediaitem: Mediaitem):
     return mediaitem
 
 
-def process_video(video_in: Path, mediaitem: Mediaitem):
-    # get config from mediaitem, that is passed as json dict (model_dump) along with it
-    config = VideoProcessing(**mediaitem.pipeline_config)
-
-    context = VideoContext(video_in)
-    steps = []
-
-    if config.boomerang:
-        steps.append(BoomerangStep(config.boomerang_speed))
-
-    # setup pipeline.
-    pipeline = Pipeline[VideoContext](*steps)
-    with MetricsTimer(process_video.__name__):
-        pipeline(context)
-
-    # copy final video
-    if context.video_processed:  # in case a video was processed, move it
-        shutil.move(context.video_processed, mediaitem.processed)
-    else:  # otherwise create a copy because we want to keep the original
-        shutil.copy2(video_in, mediaitem.processed)
-
-
 def process_and_generate_collage(files_in: list[Path], mediaitem: Mediaitem):
     # get config from mediaitem, that is passed as json dict (model_dump) along with it
     config = CollageProcessing(**mediaitem.pipeline_config)
@@ -166,61 +140,3 @@ def process_and_generate_collage(files_in: list[Path], mediaitem: Mediaitem):
     canvas = canvas.convert("RGB") if canvas.mode in ("RGBA", "P") else canvas
     with MetricsTimer(f"{process_and_generate_collage.__name__} {encode.__name__}"):
         encode([canvas], mediaitem.processed)
-
-
-def process_and_generate_animation(files_in: list[Path], mediaitem: Mediaitem):
-    # get config from mediaitem, that is passed as json dict (model_dump) along with it
-    config = AnimationProcessing(**mediaitem.pipeline_config)
-
-    ## prepare: create canvas
-    canvas_size = (config.canvas_width, config.canvas_height)
-
-    ## stage: merge captured images and predefined to one image with transparency
-    animation_images: list[Image.Image] = [Image.open(image_in) for image_in in files_in]
-
-    context = AnimationContext(animation_images)
-    steps = []
-    steps.append(AddPredefinedImagesStep(config.merge_definition))
-    steps.append(PostPredefinedImagesStep(config.merge_definition))
-    steps.append(AlignSizesStep(canvas_size))
-
-    pipeline = Pipeline[AnimationContext](*steps)
-    with MetricsTimer(process_and_generate_animation.__name__):
-        pipeline(context)
-
-    ## create mediaitem
-    with MetricsTimer(f"{process_and_generate_animation.__name__} {encode.__name__}"):
-        encode(context.images, mediaitem.processed, durations=[definition.duration for definition in config.merge_definition])
-
-
-def process_wigglegram_inner(files_in: list[Path], config: MulticameraProcessing, preview: bool) -> list[Image.Image]:
-    ## stage: merge captured images and predefined to one image with transparency
-    multicamera_images: list[Image.Image] = [Image.open(image_in) for image_in in files_in]
-
-    context = MulticameraContext(multicamera_images)
-    steps = []
-    steps.append(AlignAsPerCalibrationStep())
-    # steps.append(AutoPivotPointStep())
-    # steps.append(OffsetPerOpticalFlowStep())
-    # steps.append(CropCommonAreaStep())
-
-    pipeline = Pipeline[MulticameraContext](*steps)
-    with MetricsTimer(process_and_generate_wigglegram.__name__):
-        pipeline(context)
-
-    return context.images
-
-
-def process_and_generate_wigglegram(files_in: list[Path], mediaitem: Mediaitem):
-    # get config from mediaitem, that is passed as json dict (model_dump) along with it
-    config = MulticameraProcessing(**mediaitem.pipeline_config)
-    manipulated_image = process_wigglegram_inner(files_in, config, preview=False)
-
-    ## finalize, create sequence and save
-    # sequence like 1-2-3-4-3-2-restart
-    sequence_images = manipulated_image
-    sequence_images = sequence_images + list(reversed(sequence_images[1 : len(sequence_images) - 1]))  # add reversed list except first+last item
-    with MetricsTimer(f"{process_and_generate_wigglegram.__name__} {encode.__name__}"):
-        encode(sequence_images, mediaitem.processed, durations=config.duration)
-
-    return mediaitem

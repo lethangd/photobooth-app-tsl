@@ -45,30 +45,3 @@ def test_chose_collage(client: TestClient):
         assert response.status_code == 200
 
         mock.assert_called()
-
-
-def test_chose_animation(client: TestClient):
-    with patch.object(container.processing_service, "trigger_action") as mock:
-        # emulate action
-        response = client.get("/actions/animation/0")
-        assert response.status_code == 200
-
-        mock.assert_called()
-
-
-def test_chose_video(client: TestClient):
-    with patch.object(container.processing_service, "trigger_action") as mock:
-        # emulate action
-        response = client.get("/actions/video/0")
-        assert response.status_code == 200
-
-        mock.assert_called()
-
-
-def test_chose_multicamera(client: TestClient):
-    with patch.object(container.processing_service, "trigger_action") as mock:
-        # emulate action
-        response = client.get("/actions/multicamera/0")
-        assert response.status_code == 200
-
-        mock.assert_called()

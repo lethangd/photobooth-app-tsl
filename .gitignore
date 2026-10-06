@@ -16,6 +16,13 @@
 __pycache__
 .venv/
 
+# frontend-kiosk (Vue/Vite) - source lives here, build output is committed under src/web/frontend/kiosk/
+frontend-kiosk/node_modules/
+frontend-kiosk/coverage/
+frontend-kiosk/.vite/
+frontend-kiosk/stats.html
+frontend-kiosk/node_modules/.tmp/
+
 # env to preconfigure photobooth
 .env
 .env.*

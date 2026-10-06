@@ -5,6 +5,24 @@
 
 ---
 
+> ## TRẠNG THÁI TRIỂN KHAI (cập nhật 2026-09)
+>
+> Đây là **đặc tả mục tiêu**. Trạng thái code hiện tại so với đặc tả:
+>
+> | Hạng mục | Trạng thái |
+> |---|---|
+> | Luồng 12 màn hình S1–S12, timeout & auto-continue | ✅ Đã có (`web/frontend/framebooth.html` + `routers/api/framebooth.py`) |
+> | Auto-detect ô ảnh trong khung, ghép ảnh + filter, preview real-time | ✅ Đã có (`services/framebooth/`) |
+> | Video timelapse (ghi live-view phía client + fallback OpenCV) | ✅ Đã có |
+> | Toàn bộ tham số Phần 1.3 / Phần 4 (giá, `shotBufferCount`, các countdown/timeout, danh sách filter) | ✅ Đã đưa vào `appconfig.framebooth`, sửa được qua Admin Config page |
+> | Thanh toán VietQR + webhook đối soát | ❌ Đang **mock** (màn hình tự xác nhận sau `payment_mock_seconds`). `payment_timeout_seconds` đã có field nhưng chưa dùng |
+> | Máy in nhiệt thật | ❌ Đang **mock** (animation + progress bar). `printer_retry_count` đã có field nhưng chưa dùng |
+> | Upload Cloudflare R2 + landing page `/s/{session_id}` + presigned URL | ❌ Chưa làm — QR hiện trỏ về gallery local. Kế hoạch tại `docs/cloudflare-r2-setup.md` |
+> | Recoverable session (khôi phục sau crash) | ❌ Chưa làm — capture giữ trong `SessionStore` (RAM + `tmp/framebooth/`), mất khi restart |
+> | Phần 6 — UX Innovations (Photo Battle, Auto Social Export, Digital Passport) | ❌ Đề xuất, chưa triển khai |
+
+---
+
 ## 0. GIẢ ĐỊNH & NGUYÊN TẮC THIẾT KẾ NỀN TẢNG
 
 **Giả định kỹ thuật:**

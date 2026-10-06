@@ -1,0 +1,7 @@
+node_modules/
+coverage/
+.vite/
+stats.html
+*.local
+.DS_Store
+node_modules/.tmp/

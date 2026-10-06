@@ -5,7 +5,8 @@ from .services.acquisition import AcquisitionService
 from .services.base import BaseService
 from .services.collection import MediacollectionService
 from .services.configuration import ConfigurationService
-from .services.gpio import GpioService
+from .services.framebooth.cloud import CloudDeliveryService
+from .services.framebooth.templates import invalidate_templates_cache
 from .services.information import InformationService
 from .services.logging import LoggingService
 from .services.pluginmanager import PluginManagerService
@@ -27,7 +28,7 @@ class Container:
     processing_service = ProcessingService(acquisition_service, mediacollection_service, information_service)
     system_service = SystemService()
     share_service = ShareService()
-    gpio_service = GpioService(processing_service, share_service, mediacollection_service)
+    cloud_delivery_service = CloudDeliveryService()
     config_service = ConfigurationService(pluginmanager_service)
 
     _lock_startstop = Lock()
@@ -84,6 +85,10 @@ class Container:
     def reload(self):
         """stop all services first (reverse order), then start them again."""
         with self._lock_reload:  # lock reload so multiple calls cannot interfere and mess with the sequence
+            # frame templates are discovered from disk and cached; a reload is the
+            # moment to pick up frames the admin added/removed without an app restart.
+            invalidate_templates_cache()
+
             # stop only if started
             if self.is_started():
                 self.stop()

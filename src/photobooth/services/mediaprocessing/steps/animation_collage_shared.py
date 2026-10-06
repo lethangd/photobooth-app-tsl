@@ -1,17 +1,17 @@
 from PIL import Image
 
 from ....utils.exceptions import PipelineError
-from ...config.models.models import AnimationMergeDefinition, CollageMergeDefinition
-from ..context import AnimationContext, CollageContext, ImageContext
+from ...config.models.models import CollageMergeDefinition
+from ..context import CollageContext, ImageContext
 from ..pipeline import NextStep, Pipeline, PipelineStep
 from .image import PluginFilterStep
 
 
 class AddPredefinedImagesStep(PipelineStep):
-    def __init__(self, merge_definition: list[CollageMergeDefinition] | list[AnimationMergeDefinition]) -> None:
+    def __init__(self, merge_definition: list[CollageMergeDefinition]) -> None:
         self.merge_definition = merge_definition
 
-    def __call__(self, context: CollageContext | AnimationContext, next_step: NextStep) -> None:
+    def __call__(self, context: CollageContext, next_step: NextStep) -> None:
         for idx, _definition in enumerate(self.merge_definition):
             assert hasattr(_definition, "predefined_image")
 
@@ -31,10 +31,10 @@ class PostPredefinedImagesStep(PipelineStep):
     the mergedefinition allows for pilgram2 filter to apply, so we need to apply these here.
     """
 
-    def __init__(self, merge_definition: list[CollageMergeDefinition] | list[AnimationMergeDefinition]) -> None:
+    def __init__(self, merge_definition: list[CollageMergeDefinition]) -> None:
         self.merge_definition = merge_definition
 
-    def __call__(self, context: CollageContext | AnimationContext, next_step: NextStep) -> None:
+    def __call__(self, context: CollageContext, next_step: NextStep) -> None:
         if len(self.merge_definition) != len(context.images):
             raise RuntimeError("error processing, wrong number of images")
 

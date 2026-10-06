@@ -16,28 +16,22 @@ from .base import BaseService
 from .collection import MediacollectionService
 from .config.groups.actions import MultiImageJobControl
 from .information import InformationService
-from .processor.animation import JobModelAnimation
 from .processor.base import JobModelBase
 from .processor.collage import JobModelCollage
 from .processor.image import JobModelImage
 from .processor.machine.processingmachine import ProcessingMachine, userEvents
 from .processor.models import Capture
-from .processor.multicamera import JobModelMulticamera
-from .processor.video import JobModelVideo
 from .sse import sse_service
 from .sse.sse_ import SseEventProcessStateinfo, SseEventTranslateableFrontendNotification
 
 logger = logging.getLogger(__name__)
 
 
-ActionType = Literal["image", "collage", "animation", "video", "multicamera"]
-JobModelType = JobModelImage | JobModelCollage | JobModelAnimation | JobModelVideo | JobModelMulticamera
+ActionType = Literal["image", "collage"]
+JobModelType = JobModelImage | JobModelCollage
 ACTION_TO_MODEL: Mapping[ActionType, type[JobModelType]] = {
     "image": JobModelImage,
     "collage": JobModelCollage,
-    "animation": JobModelAnimation,
-    "video": JobModelVideo,
-    "multicamera": JobModelMulticamera,
 }
 
 
@@ -168,10 +162,6 @@ class ProcessingService(BaseService):
                     event = self._request_user_input(timeout=self._workflow_jobmodel._configuration_set.jobcontrol.approve_autoconfirm_timeout)
                     self._workflow_jobmodel._status_sm.send(event)
 
-                elif current_state == ProcessingMachine.capture and isinstance(self._workflow_jobmodel, JobModelVideo):
-                    event = self._request_user_input(timeout=self._workflow_jobmodel._configuration_set.processing.video_duration)
-                    event = event if event != "reject" else "next"  # force next if reject because reject is not an allowed transition
-                    self._workflow_jobmodel._status_sm.send(event)
                 else:
                     self._workflow_jobmodel._status_sm.send("next")
 

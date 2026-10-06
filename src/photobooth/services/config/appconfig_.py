@@ -14,7 +14,7 @@ from .baseconfig import BaseConfig
 from .groups.actions import GroupActions
 from .groups.cameras import GroupCameras
 from .groups.common import GroupCommon
-from .groups.hardwareinputoutput import GroupHardwareInputOutput
+from .groups.framebooth import GroupFramebooth
 from .groups.mediaprocessing import GroupMediaprocessing
 from .groups.misc import GroupMisc
 from .groups.share import GroupShare
@@ -44,9 +44,9 @@ class AppConfig(BaseConfig):
     # groups -> setting items
     common: GroupCommon = GroupCommon()
     actions: GroupActions = GroupActions()
+    framebooth: GroupFramebooth = GroupFramebooth()
     share: GroupShare = GroupShare()
     mediaprocessing: GroupMediaprocessing = GroupMediaprocessing()
     uisettings: GroupUiSettings = GroupUiSettings()
     cameras: GroupCameras = GroupCameras()
-    hardwareinputoutput: GroupHardwareInputOutput = GroupHardwareInputOutput()
     misc: GroupMisc = GroupMisc()

@@ -3,8 +3,6 @@ from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from gpiozero import Device
-from gpiozero.pins.mock import MockFactory
 
 from photobooth.appconfig import appconfig
 from photobooth.application import app
@@ -14,9 +12,6 @@ from photobooth.services.collection import MediacollectionService
 from tests.tests.util import dummy_mediaitem
 
 logger = logging.getLogger(name=None)
-
-# globally set device pin_factory to mock
-Device.pin_factory = MockFactory()
 
 
 @pytest.fixture(scope="session")
@@ -69,13 +64,6 @@ def global_function_setup2():
     appconfig.actions.collage[0].jobcontrol.countdown_capture = 0.2
     appconfig.actions.collage[0].jobcontrol.countdown_capture_second_following = 0.2
     appconfig.actions.collage[0].jobcontrol.approve_autoconfirm_timeout = 0.5
-    appconfig.actions.animation[0].jobcontrol.countdown_capture = 0.2
-    appconfig.actions.animation[0].jobcontrol.countdown_capture_second_following = 0.2
-    appconfig.actions.animation[0].jobcontrol.approve_autoconfirm_timeout = 0.5
-    appconfig.actions.video[0].jobcontrol.countdown_capture = 0.2
-    appconfig.actions.video[0].processing.video_duration = 2
-    appconfig.actions.video[0].processing.boomerang_speed = 2
-    appconfig.actions.video[0].processing.boomerang = True
 
     yield
 

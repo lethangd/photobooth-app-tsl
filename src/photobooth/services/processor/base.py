@@ -16,13 +16,11 @@ from ...utils.helper import filename_str_time
 from ..collection import Cache
 from ..config.groups.actions import (
     BaseConfigurationSet,
-    MulticameraJobControl,
     MultiImageJobControl,
     SingleImageJobControl,
     SingleImageProcessing,
-    VideoJobControl,
 )
-from ..config.models.models import AnimationMergeDefinition, CollageMergeDefinition
+from ..config.models.models import CollageMergeDefinition
 from ..mediaprocessing.processes import process_phase1images
 from .machine.processingmachine import ProcessingMachine
 from .models import CaptureSet, UiCaptureDefinition, UiFrameOverlay, UiJobModel
@@ -60,7 +58,7 @@ class JobModelBase(ABC, Generic[T]):
         self._countdown_timer: CountdownTimer = CountdownTimer()
 
     @staticmethod
-    def _get_number_of_captures_from_merge_definition(merge_definition: list[CollageMergeDefinition] | list[AnimationMergeDefinition]) -> int:
+    def _get_number_of_captures_from_merge_definition(merge_definition: list[CollageMergeDefinition]) -> int:
         # item.predefined_image None or "" are considered as to capture aka not predefined
         predefined_images = [item.predefined_image for item in merge_definition if item.predefined_image]
         for predefined_image in predefined_images:
@@ -187,7 +185,7 @@ class JobModelBase(ABC, Generic[T]):
             return False
 
     def start_countdown(self, offset: float = 0.0):
-        if isinstance(self._configuration_set.jobcontrol, SingleImageJobControl | VideoJobControl | MulticameraJobControl):
+        if isinstance(self._configuration_set.jobcontrol, SingleImageJobControl):
             duration_user = self._configuration_set.jobcontrol.countdown_capture
         elif isinstance(self._configuration_set.jobcontrol, MultiImageJobControl):
             if self.captures_taken == 0:

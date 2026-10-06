@@ -14,6 +14,17 @@ def test_read_web_spa(client: TestClient):
     assert "cache-control" in response.headers and "no-cache" == response.headers["cache-control"]
 
 
+def test_read_web_legacy_kiosk(client: TestClient):
+    response = client.get("../legacy")
+    assert response.status_code == 200
+    assert response.headers.get("cache-control") == "no-cache"
+
+
+def test_read_web_classic(client: TestClient):
+    response = client.get("../classic")
+    assert response.status_code == 200
+
+
 def test_read_web_sharepage(client: TestClient):
     response = client.get("../sharepage/")
     assert response.status_code == 200

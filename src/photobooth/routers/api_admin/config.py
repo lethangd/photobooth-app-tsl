@@ -38,7 +38,7 @@ def api_get_config_current_active(configurable: str):
 
 @router.patch("/{configurable}")
 def api_post_config_current(configurable: str, updated_config: dict[AnyStr, Any], reload: bool = False):
-    """Update the configuration for appconfig (configurable=app) or a plugin (example configurable="photobooth.plugins.gpio_lights")
+    """Update the configuration for appconfig (configurable=app) or a plugin (example configurable="photobooth.plugins.filter_pilgram2").
     The configuration is persisted also after update.
     updated_config is a generic type valid to receive json objects instead of a pydantic model because depending on the configurable
     the model is different.
