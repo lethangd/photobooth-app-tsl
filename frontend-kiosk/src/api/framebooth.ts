@@ -1,4 +1,4 @@
-import { getJson, postForBlob, postJson } from "./client";
+import { getJson, postBlobForJson, postForBlob, postJson } from "./client";
 import * as demo from "./demo";
 import type {
   CaptureResult,
@@ -26,6 +26,22 @@ export function getConfig(): Promise<KioskConfig> {
 export function capture(): Promise<CaptureResult> {
   if (DEMO) return demo.capture();
   return postJson<CaptureResult>(`${BASE}/capture`);
+}
+
+/** Whether the server camera can take photos right now (false: webcam busy, crashed or not configured). */
+export async function serverCameraAvailable(): Promise<boolean> {
+  if (DEMO) return false;
+  try {
+    return (await getJson<{ available: boolean }>(`${BASE}/camera-status`)).available;
+  } catch {
+    return false;
+  }
+}
+
+/** Store a photo taken with the browser camera as a capture of the current session. */
+export function uploadCapture(blob: Blob): Promise<CaptureResult> {
+  if (DEMO) return demo.addBrowserCapture(blob);
+  return postBlobForJson<CaptureResult>(`${BASE}/captures/upload`, blob);
 }
 
 export function templatePreviewUrl(templateId: string): string {

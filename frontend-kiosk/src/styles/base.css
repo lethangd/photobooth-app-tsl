@@ -1589,6 +1589,16 @@ h1 {
   width: 100%;
 }
 
+.live-img--mirror {
+  transform: scaleX(-1);
+}
+
+.live-source {
+  position: absolute;
+  right: 2.4rem;
+  top: 2.4rem;
+}
+
 .live-chip {
   left: 2.4rem;
   position: absolute;

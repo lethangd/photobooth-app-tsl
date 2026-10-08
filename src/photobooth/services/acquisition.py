@@ -99,6 +99,21 @@ class AcquisitionService(BaseService):
         pluggy_pm.hook.acq_thrill()
         pluggy_pm.hook.acq_thrill_multicam()
 
+    def stills_camera_ready(self) -> bool:
+        """True when the stills camera is up and delivering, False when it is missing or crashed (e.g. webcam busy)."""
+        backend = getattr(self, "_stills_backend", None)
+        if not (backend and backend.is_running()):
+            return False
+        # webcams only open the device on demand: ask for a live frame to know it really works
+        for _ in range(2):
+            try:
+                backend.wait_for_lores_image()
+                return True
+            except Exception:
+                if not backend.is_running():
+                    return False
+        return False
+
     def wait_for_lores_image(self, index_device: int | None = None, index_subdevice: int = 0):
 
         if not self.is_running():

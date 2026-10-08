@@ -174,3 +174,22 @@ def test_framebooth_verify_pin(client: TestClient):
     framebooth_router._pin_locked_until = 0.0
     framebooth_router._pin_failures = 0
     assert client.post("/framebooth/verify-pin", json={"pin": correct}).json()["ok"] is True
+
+
+def test_framebooth_camera_status(client: TestClient):
+    response = client.get("/framebooth/camera-status")
+    assert response.status_code == 200
+    assert isinstance(response.json()["available"], bool)
+
+
+def test_framebooth_upload_browser_capture(client: TestClient):
+    buffer = io.BytesIO()
+    Image.new("RGB", (64, 48), "red").save(buffer, format="JPEG")
+
+    response = client.post("/framebooth/captures/upload", content=buffer.getvalue(), headers={"Content-Type": "image/jpeg"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert client.get(body["preview_url"].removeprefix("/api")).status_code == 200
+
+    assert client.post("/framebooth/captures/upload", content=b"not an image").status_code == 400
+    assert client.post("/framebooth/captures/upload", content=b"").status_code == 400

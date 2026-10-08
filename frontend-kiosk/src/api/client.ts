@@ -58,3 +58,12 @@ export async function postForBlob(path: string, body: unknown): Promise<Blob> {
   });
   return await response.blob();
 }
+
+export async function postBlobForJson<T>(path: string, body: Blob): Promise<T> {
+  const response = await request(path, {
+    method: "POST",
+    headers: { "Content-Type": body.type || "application/octet-stream" },
+    body,
+  });
+  return (await response.json()) as T;
+}

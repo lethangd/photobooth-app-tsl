@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { toDataURL } from "qrcode";
 
 import {
@@ -9,7 +9,9 @@ import {
   compositePreview,
   renderCollage,
   renderTimelapse,
+  serverCameraAvailable,
   templatePreviewUrl,
+  uploadCapture,
 } from "@/api/framebooth";
 import type { CaptureResult, FrameTemplateSummary, FrameTypeConfig } from "@/api/types";
 import circleImg from "@/assets/samples/circle.webp";
@@ -29,6 +31,7 @@ import PinDialog from "@/components/PinDialog.vue";
 import Star from "@/components/Star.vue";
 import TopBar from "@/components/TopBar.vue";
 import TransitionOverlay from "@/components/TransitionOverlay.vue";
+import { browserCameraSupported, snapshot, startBrowserCamera, stopBrowserCamera } from "@/lib/browserCamera";
 import { countUp, flyImage, sleep } from "@/lib/motion";
 import * as sfx from "@/lib/sfx";
 import { useSessionStore } from "@/stores/session";
@@ -348,19 +351,86 @@ async function onPinSuccess(origin: Point): Promise<void> {
   const purpose = pinPurpose.value;
   const count = purpose === "retake" ? retakeCount.value : (store.packageConfig?.shots_to_take ?? 0);
   const ok = await navigate("capture", "bubble", origin, true);
-  if (ok) prepareCapture(count, purpose === "retake");
+  if (ok) void prepareCapture(count, purpose === "retake");
 }
 
 // ───────────── 04 capture ─────────────
 
-function prepareCapture(count: number, append: boolean): void {
+/**
+ * Where photos come from: the server camera (DSLR / configured webcam), the browser camera
+ * (laptop webcam, or the front camera when the kiosk runs on a phone) when the server camera
+ * is unusable, or the bundled sample photos in the demo when no camera can be opened at all.
+ */
+const cameraSource = ref<"server" | "browser" | "samples">("server");
+const browserVideo = ref<HTMLVideoElement | null>(null);
+
+async function useBrowserCamera(): Promise<boolean> {
+  if (!browserCameraSupported()) return false;
+  cameraSource.value = "browser";
+  await nextTick();
+  if (!browserVideo.value) return false;
+  try {
+    await startBrowserCamera(browserVideo.value);
+    return true;
+  } catch (error) {
+    console.warn("browser camera unavailable", error);
+    return false;
+  }
+}
+
+async function chooseCameraSource(): Promise<void> {
+  if (!DEMO && (await serverCameraAvailable())) {
+    cameraSource.value = "server";
+    return;
+  }
+  if (await useBrowserCamera()) return;
+  // demo without camera permission: keep the flow usable with sample photos
+  cameraSource.value = DEMO ? "samples" : "server";
+}
+
+/** One photo from the current source; a failing server camera switches to the browser camera once. */
+async function takePhoto(): Promise<CaptureResult> {
+  if (cameraSource.value === "server") {
+    try {
+      return await capture();
+    } catch (error) {
+      if (!(await useBrowserCamera())) throw error;
+      await sleep(500); // let the freshly opened camera adjust exposure
+    }
+  }
+  if (cameraSource.value === "browser" && browserVideo.value) {
+    return await uploadCapture(await snapshot(browserVideo.value));
+  }
+  return await capture();
+}
+
+async function prepareCapture(count: number, append: boolean): Promise<void> {
   if (!append) store.clearCaptures();
   captureTarget.value = store.captures.length + count;
   currentShot.value = store.captures.length + 1;
   captureMode.value = "ready";
   captureCaption.value = "Sẵn sàng chưa?";
+  await armCamera();
+}
+
+async function armCamera(): Promise<void> {
+  await chooseCameraSource();
+  if (cameraSource.value === "server" && !DEMO && !(await serverCameraAvailable())) {
+    showError(
+      "Không mở được camera",
+      "Camera của máy đang bận hoặc chưa kết nối, và trình duyệt cũng không được phép dùng webcam. " +
+        "Hãy đóng ứng dụng khác đang dùng camera (Zoom, Teams, Camera…) rồi thử lại.",
+      () => void armCamera(),
+    );
+    return;
+  }
   setTimer(() => void startShooting(), store.config?.get_ready_seconds ?? 3);
 }
+
+// release the webcam as soon as the guest leaves the capture screen
+watch(screen, (next) => {
+  if (next !== "capture") stopBrowserCamera();
+});
 
 function triggerFlash(): void {
   flashOn.value = false;
@@ -400,7 +470,7 @@ async function startShooting(): Promise<void> {
       triggerFlash();
       sfx.shutter();
       captureCaption.value = "Bắt được rồi!";
-      const shot = await capture();
+      const shot = await takePhoto();
       if (captureRunId.value !== runId) return;
       store.addCapture(shot);
       await nextTick();
@@ -987,7 +1057,16 @@ onBeforeUnmount(() => clearTimers());
         </div>
         <div class="live chrome-ring e-card" style="--i: 0; --rot: 0deg">
           <div ref="liveFrame" class="live-inner">
-            <img class="live-img" :src="LIVE_STREAM_URL" alt="Camera" />
+            <video
+              v-if="cameraSource === 'browser'"
+              ref="browserVideo"
+              class="live-img live-img--mirror"
+              autoplay
+              muted
+              playsinline
+            />
+            <img v-else class="live-img" :src="LIVE_STREAM_URL" alt="Camera" />
+            <span v-if="cameraSource === 'browser'" class="pill mono live-source">Camera thiết bị</span>
             <span class="pill mono live-chip"
               >Kiểu {{ pad2(Math.min(currentShot, captureTarget)) }} / {{ pad2(captureTarget) }}</span
             >

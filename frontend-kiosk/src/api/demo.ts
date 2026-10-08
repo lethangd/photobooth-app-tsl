@@ -130,6 +130,14 @@ export async function getConfig(): Promise<KioskConfig> {
   };
 }
 
+/** A photo taken with the device camera (laptop webcam / phone) in the demo build. */
+export async function addBrowserCapture(blob: Blob): Promise<CaptureResult> {
+  const id = `demo-${(captureCount += 1)}`;
+  const url = URL.createObjectURL(blob);
+  captures.set(id, url);
+  return { id, preview_url: url };
+}
+
 export async function capture(): Promise<CaptureResult> {
   await wait(250);
   const id = `demo-${(captureCount += 1)}`;

@@ -8,14 +8,17 @@ from the Admin config page.
 """
 
 import hmac
+import io
 import logging
+import tempfile
 import time
 from pathlib import Path
 from threading import Lock
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import FileResponse
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field
 
 from ... import PATH_PROCESSED
@@ -179,6 +182,39 @@ def api_capture_photo():
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"capture failed: {exc}") from exc
 
     capture_id, _ = session_store.add_capture(captured)
+
+    return {
+        "id": str(capture_id),
+        "preview_url": f"/api/framebooth/captures/{capture_id}",
+    }
+
+
+_MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+
+
+@router.get("/camera-status")
+def api_camera_status():
+    """Lets the kiosk fall back to the browser camera (laptop webcam / phone) when the server camera is unusable."""
+    return {"available": container.acquisition_service.stills_camera_ready()}
+
+
+@router.post("/captures/upload")
+async def api_upload_capture(request: Request):
+    """Store a photo taken by the browser camera (raw JPEG/PNG body) as a capture of the current session."""
+    body = await request.body()
+    if not body or len(body) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "empty or too large image")
+    try:
+        with Image.open(io.BytesIO(body)) as probe:
+            probe.verify()
+            suffix = ".png" if probe.format == "PNG" else ".jpg"
+    except (UnidentifiedImageError, OSError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "not an image") from exc
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        upload = Path(tmp_dir, f"{filename_str_time()}_browser{suffix}")
+        upload.write_bytes(body)
+        capture_id, _ = session_store.add_capture(upload)
 
     return {
         "id": str(capture_id),
