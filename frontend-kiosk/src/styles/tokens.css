@@ -1,57 +1,96 @@
+@import "@fontsource/unbounded/600.css";
+@import "@fontsource/unbounded/800.css";
+@import "@fontsource/space-mono/400.css";
+@import "@fontsource/space-mono/700.css";
 @import "@fontsource/be-vietnam-pro/500.css";
 @import "@fontsource/be-vietnam-pro/700.css";
 @import "@fontsource/be-vietnam-pro/800.css";
-@import "@fontsource/be-vietnam-pro/900.css";
 
-/* Animatable hues drive the aurora background colour per screen. */
-@property --h1 {
-  syntax: "<number>";
-  inherits: true;
-  initial-value: 330;
+/*
+ * The design is drawn on a 1600×900 artboard. 1rem = 10 artboard px, scaled so the
+ * artboard always fits the screen (landscape kiosk, laptop, tablet). Portrait screens
+ * use a 900×1600 artboard and their own stacked layouts (see base.css).
+ */
+html {
+  font-size: min(calc(100vw / 160), calc(100vh / 90));
 }
-@property --h2 {
-  syntax: "<number>";
-  inherits: true;
-  initial-value: 265;
-}
-@property --h3 {
-  syntax: "<number>";
-  inherits: true;
-  initial-value: 190;
-}
-@property --angle {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-@property --blob-o {
-  syntax: "<number>";
-  inherits: true;
-  initial-value: 0.55;
+
+@media (orientation: portrait) {
+  html {
+    font-size: min(calc(100vw / 90), calc(100vh / 160));
+  }
 }
 
 :root {
-  --bg: #0b0716;
-  --fg: #ffffff;
-  --muted: rgba(255, 255, 255, 0.64);
-  --faint: rgba(255, 255, 255, 0.14);
+  --bg: #e9ecf2;
+  --ink: #14161c;
+  --muted: #596071;
+  --faint: #7a8091;
+  --line: #c7ccd6;
+  --white: #ffffff;
+  --cobalt: #2b3bff;
+  --cobalt-light: #5562ff;
+  --lilac: #c9b8ff;
+  --mint: #a8f0e0;
+  --peach: #ffd2b8;
+  --red: #e5263a;
+  --holo: linear-gradient(90deg, #c9b8ff, #a8f0e0, #ffd2b8);
+  --chrome: linear-gradient(135deg, #ffffff, #b9c0cc 35%, #f7f8fa 55%, #9aa3b2 80%, #e6e9ef);
+  --chrome-ball: radial-gradient(circle at 32% 28%, #ffffff, #dde1e8 30%, #a3abba 72%, #eef0f4);
+  --shadow: 0 2.4rem 4.8rem rgba(20, 22, 28, 0.2);
+  --shadow-cobalt: 0 1.2rem 3rem rgba(43, 59, 255, 0.35);
 
-  --pink: #ff3d81;
-  --violet: #7c4dff;
-  --cyan: #22d3ee;
-  --amber: #ffc857;
-  --mint: #5eead4;
-  --grad: linear-gradient(135deg, #ff3d81 0%, #b44dff 55%, #7c4dff 100%);
-  --grad-soft: linear-gradient(135deg, rgba(255, 61, 129, 0.9), rgba(124, 77, 255, 0.9));
+  --font-display: "Unbounded", "Be Vietnam Pro", sans-serif;
+  --font-mono: "Space Mono", ui-monospace, monospace;
+  --font-body: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
 
-  --r-lg: clamp(22px, 3.4vmin, 40px);
-  --r-md: clamp(16px, 2.2vmin, 26px);
-  --gutter: clamp(18px, 3.2vmin, 48px);
-  --top: clamp(78px, 11vmin, 118px);
-
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-
-  --shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.45);
-  --glow: 0 14px 48px rgba(255, 61, 129, 0.42);
+  /* motion: 120 touch / 240 small change / 400 element enter / 700 page */
+  --ease-in: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out: cubic-bezier(0.7, 0, 0.84, 0);
+  --spring: linear(
+    0,
+    0.027,
+    0.096,
+    0.194,
+    0.306,
+    0.424,
+    0.54,
+    0.649,
+    0.746,
+    0.831,
+    0.901,
+    0.958,
+    1.002,
+    1.034,
+    1.055,
+    1.069,
+    1.075,
+    1.075,
+    1.072,
+    1.066,
+    1.058,
+    1.049,
+    1.04,
+    1.032,
+    1.024,
+    1.017,
+    1.011,
+    1.006,
+    1.002,
+    0.999,
+    0.997,
+    0.995,
+    0.995,
+    0.994,
+    0.994,
+    0.995,
+    0.995,
+    0.996,
+    0.997,
+    0.997,
+    1
+  );
+  /* entrance starts when the transition blocks open, 70 ms between elements */
+  --enter-base: 140ms;
+  --enter-step: 70ms;
 }

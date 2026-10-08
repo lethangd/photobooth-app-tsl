@@ -31,6 +31,7 @@ export interface KioskConfig {
   countdown_seconds: number;
   get_ready_seconds: number;
   payment_mock_seconds: number;
+  payment_timeout_seconds: number;
   photo_select_warn_seconds: number;
   photo_select_grace_seconds: number;
   filter_select_warn_seconds: number;
@@ -42,6 +43,10 @@ export interface KioskConfig {
   digital_delivery_default_enabled: boolean;
   digital_delivery_retention_days: number;
   timelapse_render_mock_seconds: number;
+  retake_price: number;
+  retake_max_shots: number;
+  reduce_motion: boolean;
+  sound_enabled: boolean;
   filters: FilterOption[];
   frame_types: FrameTypeConfig[];
 }
@@ -81,4 +86,9 @@ export interface TimelapsePayload {
   capture_ids: string[];
   filter_id: string;
   session_id: string | null;
+}
+
+export interface PinResult {
+  ok: boolean;
+  locked_seconds: number;
 }

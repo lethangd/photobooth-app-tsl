@@ -2,6 +2,7 @@ import { getJson, postForBlob, postJson } from "./client";
 import type {
   CaptureResult,
   KioskConfig,
+  PinResult,
   RenderPayload,
   RenderResult,
   TimelapsePayload,
@@ -38,4 +39,8 @@ export function renderTimelapse(payload: TimelapsePayload): Promise<TimelapseRes
 
 export function renderCollage(payload: RenderPayload): Promise<RenderResult> {
   return postJson<RenderResult>(`${BASE}/render`, payload);
+}
+
+export function verifyPin(pin: string): Promise<PinResult> {
+  return postJson<PinResult>(`${BASE}/verify-pin`, { pin });
 }

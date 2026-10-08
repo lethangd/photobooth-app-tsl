@@ -93,14 +93,29 @@ class GroupFramebooth(BaseModel):
         default=180,
         ge=30,
         le=600,
-        description="Maximum time to wait for a payment before cancelling the session. "
-        "Not enforced yet because payment is currently mocked; kept ready for a real payment integration.",
+        description="Maximum time the payment screen waits for the staff PIN before the kiosk cancels the session and returns to idle.",
     )
     payment_mock_seconds: int = Field(
         default=2,
         ge=1,
         le=30,
-        description="How long the mock payment screen waits before it auto-confirms as paid.",
+        description="Unused since payments are confirmed by staff PIN. Kept so existing config files still load.",
+    )
+    staff_pin: str = Field(
+        default="1234",
+        pattern=r"^[0-9]{4}$",
+        description="4-digit PIN the staff enters on the kiosk to confirm a guest has paid (package and paid retakes). Change it before going live.",
+    )
+    retake_price: int = Field(
+        default=10_000,
+        ge=0,
+        description="Price in VND for each extra shot when the guest asks to retake on the photo-selection screen.",
+    )
+    retake_max_shots: int = Field(
+        default=5,
+        ge=1,
+        le=10,
+        description="Maximum number of extra shots a guest can buy in one retake.",
     )
 
     photo_select_warn_seconds: int = Field(
@@ -143,7 +158,7 @@ class GroupFramebooth(BaseModel):
         description="How long the download-QR screen is shown before moving on to the thank-you screen.",
     )
     thank_you_seconds: int = Field(
-        default=5,
+        default=9,
         ge=2,
         le=30,
         description="How long the thank-you screen is shown before the kiosk resets to idle.",
@@ -171,6 +186,15 @@ class GroupFramebooth(BaseModel):
         description="Upload the digital files to Cloudflare R2 and link the QR code to the public page. "
         "Needs R2_ENDPOINT, R2_BUCKET, R2_PUBLIC_URL, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY in the environment or a .env.r2 file; "
         "without them the kiosk falls back to the local gallery link.",
+    )
+
+    reduce_motion: bool = Field(
+        default=False,
+        description="Replace the block page transitions and decorative animations by short fades. Enable on slow kiosk hardware if animations stutter.",
+    )
+    sound_enabled: bool = Field(
+        default=True,
+        description="Play short interface sounds (pop, whoosh, shutter, chime) on the kiosk.",
     )
 
     filters: list[FramebootFilterDefinition] = Field(

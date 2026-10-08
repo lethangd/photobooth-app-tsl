@@ -7,8 +7,11 @@ kiosk frontend (``web/frontend/framebooth.html``) expects. Business parameters
 from the Admin config page.
 """
 
+import hmac
 import logging
+import time
 from pathlib import Path
+from threading import Lock
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, status
@@ -41,6 +44,18 @@ class RenderRequest(BaseModel):
 class PreviewRequest(BaseModel):
     capture_ids: list[UUID] = Field(min_length=1)
     filter_id: str = "natural"
+
+
+class PinRequest(BaseModel):
+    pin: str = Field(max_length=16)
+
+
+# brute-force guard for the staff PIN: after too many wrong tries the kiosk is locked for a while
+_PIN_MAX_FAILURES = 5
+_PIN_LOCK_SECONDS = 30
+_pin_lock = Lock()
+_pin_failures = 0
+_pin_locked_until = 0.0
 
 
 class TimelapseRequest(BaseModel):
@@ -101,6 +116,7 @@ def api_get_framebooth_config():
         "countdown_seconds": config.capture_countdown_seconds,
         "get_ready_seconds": config.get_ready_duration_seconds,
         "payment_mock_seconds": config.payment_mock_seconds,
+        "payment_timeout_seconds": config.payment_timeout_seconds,
         "photo_select_warn_seconds": config.photo_select_warn_seconds,
         "photo_select_grace_seconds": config.photo_select_grace_seconds,
         "filter_select_warn_seconds": config.filter_select_warn_seconds,
@@ -109,12 +125,39 @@ def api_get_framebooth_config():
         "printing_mock_seconds": config.printing_mock_seconds,
         "qr_download_seconds": config.qr_download_seconds,
         "thank_you_seconds": config.thank_you_seconds,
+        "retake_price": config.retake_price,
+        "retake_max_shots": config.retake_max_shots,
+        "reduce_motion": config.reduce_motion,
+        "sound_enabled": config.sound_enabled,
         "digital_delivery_default_enabled": config.digital_delivery_default_enabled,
         "digital_delivery_retention_days": config.digital_delivery_retention_days,
         "timelapse_render_mock_seconds": config.timelapse_render_mock_seconds,
         "filters": [filters.filter_to_public(filter_config) for filter_config in config.filters],
         "frame_types": frame_types,
     }
+
+
+@router.post("/verify-pin")
+def api_verify_staff_pin(request: PinRequest):
+    """Staff confirms a cash/transfer payment by typing the PIN on the kiosk. The PIN never leaves the server."""
+    global _pin_failures, _pin_locked_until
+
+    with _pin_lock:
+        now = time.monotonic()
+        if now < _pin_locked_until:
+            return {"ok": False, "locked_seconds": int(_pin_locked_until - now) + 1}
+
+        if hmac.compare_digest(request.pin.encode(), appconfig.framebooth.staff_pin.encode()):
+            _pin_failures = 0
+            return {"ok": True, "locked_seconds": 0}
+
+        _pin_failures += 1
+        logger.warning(f"wrong staff PIN entered ({_pin_failures}/{_PIN_MAX_FAILURES})")
+        if _pin_failures >= _PIN_MAX_FAILURES:
+            _pin_failures = 0
+            _pin_locked_until = now + _PIN_LOCK_SECONDS
+            return {"ok": False, "locked_seconds": _PIN_LOCK_SECONDS}
+        return {"ok": False, "locked_seconds": 0}
 
 
 @router.get("/templates/{template_id}/preview")

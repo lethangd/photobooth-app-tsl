@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-const props = defineProps<{ name: string; size?: number }>();
+const props = defineProps<{ name: string; size?: number; stroke?: number }>();
 
 const PATHS: Record<string, string[]> = {
   "arrow-right": ["M5 12h14", "M13 6l6 6-6 6"],
@@ -17,27 +17,14 @@ const PATHS: Record<string, string[]> = {
     "M7 17H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2",
     "M7 14h10v6H7z",
   ],
-  sparkle: [
-    "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z",
-    "M19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z",
+  lock: [
+    "M7 11h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z",
+    "M8 11V7a4 4 0 0 1 8 0v4",
   ],
-  video: ["M4 6h11a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z", "M16 10l5-3v10l-5-3"],
+  backspace: ["M21 5H9l-6 7 6 7h12z", "M17 9l-6 6", "M11 9l6 6"],
+  x: ["M6 6l12 12", "M18 6L6 18"],
   home: ["M4 11l8-7 8 7", "M6 10v10h12V10"],
-  heart: ["M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"],
-  touch: [
-    "M9 11V5a2 2 0 1 1 4 0v6",
-    "M13 11V9.5a2 2 0 0 1 4 0V15a6 6 0 0 1-6 6h-1a6 6 0 0 1-5.2-3L3 13.5a1.7 1.7 0 0 1 2.8-1.8L9 14",
-  ],
-  alert: ["M12 4l9 16H3z", "M12 10v4", "M12 17.5v.01"],
-  qr: [
-    "M4 4h6v6H4z",
-    "M14 4h6v6h-6z",
-    "M4 14h6v6H4z",
-    "M14 14h3v3h-3z",
-    "M20 14v.01",
-    "M14 20h3",
-    "M20 17v3",
-  ],
+  alert: ["M12 7v6", "M12 17v.01"],
 };
 
 const paths = computed(() => PATHS[props.name] ?? []);
@@ -51,7 +38,7 @@ const paths = computed(() => PATHS[props.name] ?? []);
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    stroke-width="2.2"
+    :stroke-width="stroke ?? 2.2"
     stroke-linecap="round"
     stroke-linejoin="round"
     aria-hidden="true"

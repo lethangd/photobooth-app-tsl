@@ -11,6 +11,16 @@
 /recycle
 /plugins
 
+# same runtime folders, created under src/ when tests run with src/ as working dir
+/src/config
+/src/cache
+/src/database
+/src/media
+/src/log
+/src/userdata
+/src/tmp
+/src/recycle
+
 
 # python files
 __pycache__

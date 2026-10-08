@@ -154,3 +154,23 @@ def test_framebooth_render_unknown_filter(client: TestClient):
         },
     )
     assert response.status_code == 400
+
+
+def test_framebooth_verify_pin(client: TestClient):
+    from photobooth.routers.api import framebooth as framebooth_router
+
+    correct = appconfig.framebooth.staff_pin
+    wrong = "0000" if correct != "0000" else "1111"
+
+    assert client.post("/framebooth/verify-pin", json={"pin": correct}).json() == {"ok": True, "locked_seconds": 0}
+    assert client.post("/framebooth/verify-pin", json={"pin": wrong}).json()["ok"] is False
+
+    # too many wrong tries lock the PIN pad, even the correct PIN is refused while locked
+    for _ in range(framebooth_router._PIN_MAX_FAILURES):
+        response = client.post("/framebooth/verify-pin", json={"pin": wrong}).json()
+    assert response["ok"] is False and response["locked_seconds"] > 0
+    assert client.post("/framebooth/verify-pin", json={"pin": correct}).json()["ok"] is False
+
+    framebooth_router._pin_locked_until = 0.0
+    framebooth_router._pin_failures = 0
+    assert client.post("/framebooth/verify-pin", json={"pin": correct}).json()["ok"] is True
