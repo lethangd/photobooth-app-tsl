@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { toDataURL } from "qrcode";
 
 import {
+  DEMO,
   LIVE_STREAM_URL,
   capture,
   compositePreview,
@@ -191,6 +192,7 @@ function pad2(value: number): string {
 
 /** Cache-busted URL that stays stable across re-renders (no image reload on every tick). */
 function stableUrl(url: string): string {
+  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
   let cached = urlCache.get(url);
   if (!cached) {
     cached = `${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`;
@@ -1359,7 +1361,8 @@ onBeforeUnmount(() => clearTimers());
           </h1>
           <div v-if="store.digitalDeliveryEnabled" class="video-pill e-pop" style="--i: 4">
             <div class="video-thumb">
-              <video v-if="timelapseUrl" :src="timelapseUrl" autoplay loop muted playsinline />
+              <img v-if="timelapseUrl && DEMO" :src="timelapseUrl" alt="" />
+              <video v-else-if="timelapseUrl" :src="timelapseUrl" autoplay loop muted playsinline />
               <span v-else class="spinner" />
             </div>
             <div>
@@ -1618,6 +1621,8 @@ onBeforeUnmount(() => clearTimers());
       :style="{ left: `${tap.x}px`, top: `${tap.y}px` }"
       ><Star
     /></span>
+
+    <div v-if="DEMO" class="demo-badge mono">Bản demo · PIN nhân viên 1234</div>
 
     <TransitionOverlay ref="overlay" :reduced="reduced" />
   </div>

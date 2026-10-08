@@ -1,0 +1,79 @@
+name: Kiosk demo (Vercel)
+
+# CI: typecheck, unit tests and the demo build on every push / PR that touches the kiosk frontend.
+# CD: deploys the backend-less demo build to Vercel — a preview for pull requests,
+#     production for pushes to main. Needs the repository secrets VERCEL_TOKEN,
+#     VERCEL_ORG_ID and VERCEL_PROJECT_ID; without them the deploy job is skipped.
+
+on:
+  push:
+    branches: [main]
+    paths: ["frontend-kiosk/**", ".github/workflows/kiosk-demo.yml"]
+  pull_request:
+    paths: ["frontend-kiosk/**", ".github/workflows/kiosk-demo.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: kiosk-demo-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: frontend-kiosk
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend-kiosk/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build:demo
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_ENV: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+    # the Vercel project's Root Directory must be "frontend-kiosk"; the CLI runs from the repo root
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Skip when Vercel secrets are missing
+        id: guard
+        working-directory: .
+        run: echo "enabled=${{ env.VERCEL_TOKEN != '' && env.VERCEL_PROJECT_ID != '' }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.enabled == 'true'
+      - uses: pnpm/action-setup@v4
+        if: steps.guard.outputs.enabled == 'true'
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        if: steps.guard.outputs.enabled == 'true'
+        with:
+          node-version: 22
+      - name: Pull Vercel project settings
+        if: steps.guard.outputs.enabled == 'true'
+        run: npx vercel@latest pull --yes --environment=$VERCEL_ENV --token=$VERCEL_TOKEN
+      - name: Build
+        if: steps.guard.outputs.enabled == 'true'
+        run: npx vercel@latest build ${{ env.VERCEL_ENV == 'production' && '--prod' || '' }} --token=$VERCEL_TOKEN
+      - name: Deploy
+        if: steps.guard.outputs.enabled == 'true'
+        run: |
+          url=$(npx vercel@latest deploy --prebuilt ${{ env.VERCEL_ENV == 'production' && '--prod' || '' }} --token=$VERCEL_TOKEN)
+          echo "Deployed to $url" >> "$GITHUB_STEP_SUMMARY"

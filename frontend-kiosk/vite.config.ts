@@ -10,15 +10,16 @@ const backendProxy = { target: BACKEND, changeOrigin: true };
 // Build output goes straight into the FastAPI static dir next to the (still
 // committed) "Classic" SPA. emptyOutDir MUST stay false so we never wipe
 // assets/, icons/, favicon.ico or index.html that belong to Classic.
-export default defineConfig({
+// `--mode demo` (pnpm build:demo) instead builds the backend-less public demo into dist/ for Vercel.
+export default defineConfig(({ mode }) => ({
   plugins: [vue()],
   base: "/",
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   build: {
-    outDir: fileURLToPath(new URL("../src/web/frontend", import.meta.url)),
-    emptyOutDir: false,
+    outDir: fileURLToPath(new URL(mode === "demo" ? "./dist" : "../src/web/frontend", import.meta.url)),
+    emptyOutDir: mode === "demo",
     rollupOptions: {
       input: { framebooth: fileURLToPath(new URL("./framebooth.html", import.meta.url)) },
       output: {
@@ -38,4 +39,4 @@ export default defineConfig({
       "/private.css": backendProxy,
     },
   },
-});
+}));
