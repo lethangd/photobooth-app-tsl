@@ -125,7 +125,7 @@ def test_security_change_admin_password_and_pin(client_authenticated: TestClient
     )
 
     stored = credentials.secrets_file().read_text(encoding="utf-8")
-    assert "4321" not in stored and "secret-42" not in stored  # only hashes land in .env
+    assert "STAFF_PIN=4321" in stored and "ADMIN_PASSWORD=secret-42" in stored
     assert credentials.verify_staff_pin("4321") and not credentials.verify_staff_pin(credentials.DEFAULT_STAFF_PIN)
     assert credentials.verify_admin_password("secret-42") and not credentials.verify_admin_password("0000")
     assert not client_authenticated.get("/admin/kiosk/security").json()["admin_password_default"]

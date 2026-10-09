@@ -287,6 +287,8 @@ def api_kiosk_security():
         "admin_password_default": credentials.admin_password_is_default(),
         "staff_pin_default": credentials.staff_pin_is_default(),
         "secrets_file": str(credentials.secrets_file().resolve()),
+        # automatic confirmation of bank transfers (see services/framebooth/payments.py)
+        "sepay": "token" if credentials.get_value("SEPAY_API_TOKEN") else ("webhook" if credentials.get_value("SEPAY_WEBHOOK_KEY") else None),
     }
 
 

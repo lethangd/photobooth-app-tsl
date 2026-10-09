@@ -7,6 +7,7 @@ kiosk frontend (``web/frontend/framebooth.html``) expects. Business parameters
 from the Admin config page.
 """
 
+import hmac
 import io
 import logging
 import tempfile
@@ -16,7 +17,7 @@ from threading import Lock
 from typing import Literal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field
@@ -26,9 +27,11 @@ from ...appconfig import appconfig
 from ...container import container
 from ...database.models import Mediaitem
 from ...services import credentials
-from ...services.framebooth import filters, renderer, templates, timelapse
+from ...services.framebooth import filters, printer, renderer, templates, timelapse
+from ...services.framebooth import payments as payments_module
 from ...services.framebooth.ledger import ledger
 from ...services.framebooth.models import FrameTemplate
+from ...services.framebooth.payments import SEPAY_WEBHOOK_KEY, PaymentError, add_loyalty_stamp, check_voucher, list_amount, payments
 from ...services.framebooth.session_store import session_store
 from ...utils.helper import filename_str_time
 
@@ -44,6 +47,10 @@ class RenderRequest(BaseModel):
     session_id: str | None = None
     digital_delivery: bool = True
     timelapse_id: UUID | None = None
+    copies: int = Field(default=1, ge=1, le=10)
+    share_consent: bool = False
+    # transparent PNG drawn on the kiosk (stickers, text, doodles), laid over the whole collage
+    overlay_png: str | None = Field(default=None, max_length=12_000_000)
 
 
 class PreviewRequest(BaseModel):
@@ -55,12 +62,17 @@ class PinRequest(BaseModel):
     pin: str = Field(max_length=16)
     # what the staff confirms; the amount is derived from the server-side prices
     session_id: str | None = Field(default=None, max_length=64)
-    purpose: Literal["package", "retake"] = "package"
+    purpose: Literal["package", "retake", "copies"] = "package"
     slot_count: int | None = None
     retake_shots: int | None = Field(default=None, ge=1, le=20)
+    # the payment request the staff confirms (preferred: carries discount and partial transfers)
+    reference: str | None = Field(default=None, max_length=32)
 
 
 def _pin_amount(request: PinRequest) -> int:
+    intent = payments.get(request.reference) if request.reference else None
+    if intent:
+        return intent.remaining
     config = appconfig.framebooth
     if request.purpose == "retake":
         return (request.retake_shots or 0) * config.retake_price
@@ -72,7 +84,9 @@ def _record_pin(request: PinRequest, ok: bool, locked: bool = False) -> None:
     amount = _pin_amount(request)
     try:
         ledger.record_pin(request.session_id, request.purpose, amount, ok, locked)
-        if ok and request.session_id:
+        if ok and request.reference and payments.get(request.reference):
+            payments.confirm_by_staff(request.reference)  # books the payment itself
+        elif ok and request.session_id and request.purpose != "copies":
             if request.purpose == "retake":
                 ledger.record_retake_paid(request.session_id, request.retake_shots or 0, amount)
             else:
@@ -164,9 +178,161 @@ def api_get_framebooth_config():
         "digital_delivery_default_enabled": config.digital_delivery_default_enabled,
         "digital_delivery_retention_days": config.digital_delivery_retention_days,
         "timelapse_render_mock_seconds": config.timelapse_render_mock_seconds,
+        "pose_seconds_options": config.pose_seconds_options,
+        "payment_qr_expiry_seconds": config.payment_qr_expiry_seconds,
+        "bank_qr": payments_module.bank_qr_configured(),
+        "auto_confirm": payments_module.auto_confirm_available(),
+        "extra_copy_price": config.extra_copy_price,
+        "max_print_copies": config.max_print_copies,
+        "print_enabled": config.print_enabled,
+        "loyalty_enabled": config.loyalty_enabled,
+        "loyalty_stamps_for_reward": config.loyalty_stamps_for_reward,
+        "support_hotline": config.support_hotline,
+        "has_vouchers": any(voucher.enabled for voucher in config.vouchers) or config.loyalty_enabled,
         "filters": [filters.filter_to_public(filter_config) for filter_config in config.filters],
         "frame_types": frame_types,
     }
+
+
+# ───────── payments, vouchers, loyalty ─────────
+
+
+class PaymentRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=64)
+    purpose: Literal["package", "retake", "copies"] = "package"
+    quantity: int = Field(ge=1, le=20, description="slot count for a package, shots for a retake, extra copies for copies")
+    voucher_code: str | None = Field(default=None, max_length=24)
+
+
+class VoucherCheck(BaseModel):
+    code: str = Field(max_length=24)
+    slot_count: int
+
+
+class LoyaltyRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=64)
+    phone: str = Field(max_length=20)
+
+
+class FeedbackRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=64)
+    rating: int | None = Field(default=None, ge=1, le=3)
+    # guest allows the shop to post the photo on its page
+    share_consent: bool | None = None
+
+
+def _payment_or_404(reference: str):
+    intent = payments.get(reference)
+    if not intent:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "payment not found")
+    return intent
+
+
+@router.post("/payments")
+def api_create_payment(request: PaymentRequest):
+    """Amount to pay (server prices, discount applied) and the VietQR text for it."""
+    try:
+        return payments.create(request.session_id, request.purpose, request.quantity, request.voucher_code).public()
+    except PaymentError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+
+
+@router.get("/payments/{reference}")
+def api_get_payment(reference: str):
+    return _payment_or_404(reference).public()
+
+
+@router.post("/payments/{reference}/renew")
+def api_renew_payment(reference: str):
+    _payment_or_404(reference)
+    return payments.renew(reference).public()
+
+
+@router.post("/payments/{reference}/cancel")
+def api_cancel_payment(reference: str):
+    _payment_or_404(reference)
+    payments.cancel(reference)
+    return {"ok": True}
+
+
+@router.post("/vouchers/check")
+def api_check_voucher(request: VoucherCheck):
+    try:
+        base = list_amount("package", request.slot_count)
+        discount = check_voucher(request.code, "package", base)
+    except PaymentError as exc:
+        return {"ok": False, "message": str(exc)}
+    return {"ok": True, "code": discount.code, "discount": discount.amount, "total": base - discount.amount, "label": discount.label}
+
+
+@router.post("/payments/sepay-webhook")
+async def api_sepay_webhook(request: Request, authorization: str = Header(default="")):
+    """Webhook of SePay (https://sepay.vn) for every incoming transfer; needs SEPAY_WEBHOOK_KEY in .env."""
+    key = credentials.get_value(SEPAY_WEBHOOK_KEY)
+    if not key or not hmac.compare_digest(authorization.encode(), f"Apikey {key}".encode()):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid api key")
+    body = await request.json()
+    if body.get("transferType") == "in" and int(body.get("transferAmount") or 0) > 0:
+        payments.apply_transfer(f"sepay-{body.get('id')}", int(body["transferAmount"]), str(body.get("content") or ""))
+    return {"success": True}
+
+
+@router.post("/loyalty")
+def api_loyalty_stamp(request: LoyaltyRequest):
+    if not appconfig.framebooth.loyalty_enabled:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "loyalty disabled")
+    try:
+        return add_loyalty_stamp(request.phone, request.session_id)
+    except PaymentError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+
+
+@router.post("/feedback")
+def api_feedback(request: FeedbackRequest):
+    try:
+        if request.rating is not None:
+            ledger.record_session_field(request.session_id, "rating", request.rating)
+        if request.share_consent is not None:
+            ledger.record_session_field(request.session_id, "share_consent", int(request.share_consent))
+    except Exception as exc:
+        logger.error(f"could not write kiosk ledger: {exc}")
+    return {"ok": True}
+
+
+# ───────── printer ─────────
+
+
+class PrintRequest(BaseModel):
+    media_id: UUID
+    copies: int = Field(default=1, ge=1, le=10)
+    session_id: str | None = None
+
+
+@router.get("/printer-status")
+def api_printer_status():
+    """Short state of the kiosk printer for the device-error screen (polls until it can print again)."""
+    return printer.kiosk_printer_problem() or {"ok": True}
+
+
+@router.post("/print")
+def api_print_again(request: PrintRequest):
+    try:
+        mediaitem = container.mediacollection_service.get_item(request.media_id)
+    except Exception as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "photo not found") from exc
+    return _print(mediaitem, request.copies, request.session_id)
+
+
+def _print(mediaitem: Mediaitem, copies: int, session_id: str | None) -> dict:
+    if not appconfig.framebooth.print_enabled:
+        return {"ok": True, "simulated": True}
+    problem = printer.print_media(mediaitem, copies)
+    if problem and session_id:
+        try:
+            ledger.record_session_field(session_id, "print_error", problem["code"])
+        except Exception as exc:
+            logger.error(f"could not write kiosk ledger: {exc}")
+    return problem or {"ok": True, "simulated": False}
 
 
 @router.post("/verify-pin")
@@ -228,7 +394,9 @@ _MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 @router.get("/camera-status")
 def api_camera_status():
     """Lets the kiosk fall back to the browser camera (laptop webcam / phone) when the server camera is unusable."""
-    return {"available": container.acquisition_service.stills_camera_ready()}
+    acquisition = container.acquisition_service
+    # "virtual": only the demo camera is configured, no real one connected -> the kiosk uses the browser camera if it can
+    return {"available": acquisition.stills_camera_ready(), "virtual": acquisition.stills_camera_is_virtual()}
 
 
 @router.post("/captures/upload")
@@ -295,6 +463,8 @@ def api_get_timelapse(timelapse_id: UUID):
 def api_render_collage(request: RenderRequest):
     template, capture_paths = _resolve_render(request.template_id, request.capture_ids, request.filter_id)
     image = renderer.render_collage_image(template, capture_paths, request.filter_id)
+    if request.overlay_png:
+        image = renderer.apply_overlay(image, request.overlay_png)
 
     output_path = Path(PATH_PROCESSED, Path(filename_str_time()).with_suffix(".jpg"))
     image.save(output_path, quality=95)
@@ -312,15 +482,20 @@ def api_render_collage(request: RenderRequest):
             "all_capture_ids": [str(capture_id) for capture_id in request.all_capture_ids],
             "session_id": request.session_id,
             "digital_delivery": request.digital_delivery,
+            "copies": request.copies,
         },
         show_in_gallery=True,
     )
     container.mediacollection_service.add_item(mediaitem)
 
+    # print first: the guest is waiting at the printer, the upload can take a few seconds
+    print_result = _print(mediaitem, request.copies, request.session_id)
     cloud_url = _upload_digital_delivery(request, output_path) if request.digital_delivery else None
     local_url = f"/gallery/mediaviewer/{mediaitem.id}"
     try:
         ledger.record_print(request.session_id, str(mediaitem.id), request.digital_delivery, cloud_url)
+        if request.session_id:
+            ledger.record_session_field(request.session_id, "share_consent", int(request.share_consent))
     except Exception as exc:
         logger.error(f"could not write kiosk ledger: {exc}")
 
@@ -332,6 +507,7 @@ def api_render_collage(request: RenderRequest):
         "cloud_url": cloud_url,
         "retention_days": appconfig.framebooth.digital_delivery_retention_days,
         "timelapse_status": "mock_ready" if request.digital_delivery else "disabled",
+        "print": print_result,
     }
 
 
@@ -345,7 +521,8 @@ def _upload_digital_delivery(request: RenderRequest, collage: Path) -> str | Non
         original_ids = request.all_capture_ids or request.capture_ids
         originals = [path for path in (session_store.get_capture(capture_id) for capture_id in original_ids) if path]
         timelapse = session_store.get_timelapse(request.timelapse_id) if request.timelapse_id else None
-        return cloud.upload_session(collage, originals, timelapse)
+        selected = [path for path in (session_store.get_capture(capture_id) for capture_id in request.capture_ids) if path]
+        return cloud.upload_session(collage, originals, timelapse, boomerang_sources=selected, session_id=request.session_id)
     except Exception as exc:
         logger.error(f"cloud upload failed, falling back to local gallery link: {exc}")
         return None

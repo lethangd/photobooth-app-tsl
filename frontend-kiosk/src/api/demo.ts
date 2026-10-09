@@ -17,11 +17,15 @@ import type {
   FilterOption,
   FrameTemplateSummary,
   KioskConfig,
+  LoyaltyResult,
+  Payment,
+  PaymentPurpose,
   PinResult,
   RenderPayload,
   RenderResult,
   TimelapsePayload,
   TimelapseResult,
+  VoucherCheck,
 } from "./types";
 
 export const DEMO_PIN = "1234";
@@ -120,6 +124,17 @@ export async function getConfig(): Promise<KioskConfig> {
     retake_max_shots: 5,
     reduce_motion: false,
     sound_enabled: true,
+    pose_seconds_options: [3, 5, 10],
+    payment_qr_expiry_seconds: 300,
+    bank_qr: false,
+    auto_confirm: false,
+    extra_copy_price: 15000,
+    max_print_copies: 4,
+    print_enabled: false,
+    loyalty_enabled: true,
+    loyalty_stamps_for_reward: 5,
+    support_hotline: "",
+    has_vouchers: true,
     filters: FILTERS,
     frame_types: [2, 3, 4].map((slots, index) => ({
       slot_count: slots,
@@ -229,7 +244,97 @@ export async function renderCollage(payload: RenderPayload): Promise<RenderResul
   };
 }
 
-export async function verifyPin(pin: string): Promise<PinResult> {
+export async function verifyPin(pin: string, reference?: string): Promise<PinResult> {
   await wait(250);
-  return { ok: pin === DEMO_PIN, locked_seconds: 0 };
+  const ok = pin === DEMO_PIN;
+  const payment = reference ? payments.get(reference) : undefined;
+  if (ok && payment) {
+    payment.status = "paid";
+    payment.method = "pin";
+  }
+  return { ok, locked_seconds: 0 };
+}
+
+// ───── payments (demo: staff PIN 1234, voucher TSL-HALLO) ─────
+
+const PRICES: Record<number, number> = { 2: 50000, 3: 70000, 4: 90000 };
+const DEMO_VOUCHER = { code: "TSL-HALLO", discount: 10000 };
+const payments = new Map<string, Payment>();
+let loyaltyStamps = 2;
+
+function listAmount(purpose: PaymentPurpose, quantity: number): number {
+  if (purpose === "retake") return quantity * 10000;
+  if (purpose === "copies") return quantity * 15000;
+  return PRICES[quantity] ?? 0;
+}
+
+export async function checkVoucher(code: string, slotCount: number): Promise<VoucherCheck> {
+  await wait(200);
+  if (code.trim().toUpperCase() !== DEMO_VOUCHER.code)
+    return { ok: false, message: "Mã không đúng hoặc không còn hiệu lực" };
+  const base = PRICES[slotCount] ?? 0;
+  return {
+    ok: true,
+    code: DEMO_VOUCHER.code,
+    discount: DEMO_VOUCHER.discount,
+    total: base - DEMO_VOUCHER.discount,
+    label: "Giảm 10.000đ",
+  };
+}
+
+export async function createPayment(
+  sessionId: string,
+  purpose: PaymentPurpose,
+  quantity: number,
+  voucherCode?: string | null,
+): Promise<Payment> {
+  await wait(150);
+  const base = listAmount(purpose, quantity);
+  const discount = voucherCode && voucherCode.toUpperCase() === DEMO_VOUCHER.code ? DEMO_VOUCHER.discount : 0;
+  const reference = `TSL${sessionId}${purpose === "retake" ? "R" : purpose === "copies" ? "C" : ""}`;
+  const payment: Payment = {
+    reference,
+    session_id: sessionId,
+    purpose,
+    quantity,
+    list_amount: base,
+    discount,
+    voucher_code: discount ? DEMO_VOUCHER.code : null,
+    amount: base - discount,
+    received: 0,
+    remaining: base - discount,
+    status: base - discount === 0 ? "paid" : "pending",
+    method: null,
+    expires_in: 300,
+    expired: false,
+    qr_payload: null,
+    bank_account_name: "",
+    auto_confirm: false,
+  };
+  payments.set(reference, payment);
+  return { ...payment };
+}
+
+export async function getPayment(reference: string, renew = false): Promise<Payment> {
+  const payment = payments.get(reference);
+  if (!payment) throw new Error("payment not found");
+  if (renew) payment.expires_in = 300;
+  return { ...payment };
+}
+
+export async function addLoyaltyStamp(phone: string): Promise<LoyaltyResult> {
+  await wait(300);
+  if (!/^0[35789]\d{8}$/.test(phone.replace(/\D/g, ""))) throw new Error("Số điện thoại chưa đúng");
+  loyaltyStamps += 1;
+  const full = loyaltyStamps >= 5;
+  const result: LoyaltyResult = {
+    stamps: loyaltyStamps,
+    sessions: loyaltyStamps,
+    target: 5,
+    new_stamp: true,
+    reward_code: full ? "FREE-DEMO26" : null,
+    reward_valid_until: full ? "2026-12-31" : null,
+  };
+  if (full) loyaltyStamps = 0;
+  return result;
 }

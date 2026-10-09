@@ -36,6 +36,7 @@ frontend-kiosk/node_modules/.tmp/
 # env to preconfigure photobooth
 .env
 .env.*
+!.env.example
 
 # pytest
 .coverage*

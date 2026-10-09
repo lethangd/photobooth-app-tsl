@@ -47,3 +47,20 @@ def test_sweep_survives_network_errors():
 
 def test_sweep_is_noop_when_not_configured():
     assert CloudDeliveryService().sweep_expired() == 0
+
+
+def test_delivery_page_and_boomerang(tmp_path):
+    from PIL import Image
+
+    from photobooth.services.framebooth.cloud import make_boomerang, render_delivery_page
+
+    sources = []
+    for index, color in enumerate(["red", "green", "blue"]):
+        path = tmp_path / f"{index}.jpg"
+        Image.new("RGB", (300, 200), color).save(path)
+        sources.append(path)
+    gif = make_boomerang(sources, tmp_path / "b.gif")
+    assert gif and Image.open(gif).n_frames == 4  # forth and back without repeating the ends
+
+    page = render_delivery_page({"session": "PB1", "collage": "collage.jpg", "originals": [], "note": "</script><b>"})
+    assert "__SESSION_DATA__" not in page and '"session": "PB1"' in page and "</script><b>" not in page

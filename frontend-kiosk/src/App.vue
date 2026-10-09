@@ -5,16 +5,33 @@ import { toDataURL } from "qrcode";
 import {
   DEMO,
   LIVE_STREAM_URL,
+  cancelPayment,
   capture,
   compositePreview,
+  createPayment,
+  getPayment,
+  printAgain,
+  printerStatus,
   renderCollage,
   renderTimelapse,
-  serverCameraAvailable,
+  renewPayment,
+  sendFeedback,
+  serverCameraStatus,
   templatePreviewUrl,
   uploadCapture,
 } from "@/api/framebooth";
-import type { CaptureResult, FrameTemplateSummary, FrameTypeConfig } from "@/api/types";
+import type {
+  CaptureResult,
+  FrameTemplateSummary,
+  FrameTypeConfig,
+  Payment,
+  PaymentPurpose,
+  PrintStatus,
+  RenderResult,
+  VoucherCheck,
+} from "@/api/types";
 import circleImg from "@/assets/samples/circle.webp";
+import heroCutout from "@/assets/samples/hero-cutout.webp";
 import heroImg from "@/assets/samples/hero.webp";
 import s1 from "@/assets/samples/s1.webp";
 import s2 from "@/assets/samples/s2.webp";
@@ -26,11 +43,15 @@ import s7 from "@/assets/samples/s7.webp";
 import stripA from "@/assets/samples/strip-a.webp";
 import stripB from "@/assets/samples/strip-b.webp";
 import Icon from "@/components/Icon.vue";
+import LoyaltyDialog from "@/components/LoyaltyDialog.vue";
+import NoticeDialog from "@/components/NoticeDialog.vue";
 import PhotoStrip from "@/components/PhotoStrip.vue";
 import PinDialog from "@/components/PinDialog.vue";
 import Star from "@/components/Star.vue";
+import StickerEditor from "@/components/StickerEditor.vue";
 import TopBar from "@/components/TopBar.vue";
 import TransitionOverlay from "@/components/TransitionOverlay.vue";
+import VoucherDialog from "@/components/VoucherDialog.vue";
 import { browserCameraSupported, snapshot, startBrowserCamera, stopBrowserCamera } from "@/lib/browserCamera";
 import { countUp, flyImage, sleep } from "@/lib/motion";
 import * as sfx from "@/lib/sfx";
@@ -41,11 +62,15 @@ type Screen =
   | "idle"
   | "package"
   | "payment"
+  | "paySuccess"
+  | "prepare"
   | "capture"
   | "photoSelect"
   | "retake"
   | "filter"
+  | "decorate"
   | "final"
+  | "deviceError"
   | "qr"
   | "thankYou";
 type Move = "forward" | "back" | "bubble" | "shutter" | "instant";
@@ -54,14 +79,28 @@ type Point = { x: number; y: number };
 const STEP: Partial<Record<Screen, number>> = {
   package: 0,
   payment: 1,
+  paySuccess: 1,
+  prepare: 2,
   capture: 2,
   photoSelect: 3,
   retake: 3,
   filter: 4,
+  decorate: 4,
   final: 5,
+  deviceError: 5,
 };
-const TIMEOUT_BAR_SCREENS: Screen[] = ["package", "payment", "photoSelect", "retake", "filter", "qr"];
-const IDLE_PHOTOS = [heroImg, s5, s6, s7];
+const TIMEOUT_BAR_SCREENS: Screen[] = [
+  "package",
+  "payment",
+  "prepare",
+  "photoSelect",
+  "retake",
+  "filter",
+  "decorate",
+  "qr",
+];
+const PREPARE_SECONDS = 45;
+const PAYMENT_POLL_MS = 2000;
 const PACKAGE_PHOTOS: Record<number, string[]> = { 2: [s2, s3], 3: [s5, s6, s7], 4: [s1, s2, s3, s4] };
 const PACKAGE_TINTS = ["#A8F0E0", "#5562FF", "#FFD2B8"];
 const MARQUEE_IDLE = "CƯỜI LÊN ✦ NHẬN ẢNH NGAY ✦ IN TRONG 1 PHÚT ✦ ẢNH SỐ QUA QR ✦ ";
@@ -80,15 +119,25 @@ const timerNonce = ref(0);
 const timerSeconds = ref(0);
 const now = ref(Date.now());
 
-// idle
-const idlePhoto = ref(0);
 // package
 const pickedSlot = ref<number | null>(null);
 // payment / pin
+const payment = ref<Payment | null>(null);
 const paymentQrUrl = ref("");
+const paymentExpiresAt = ref(0);
+const paidAmount = ref(0);
+const paidPurpose = ref<PaymentPurpose>("package");
 const shownAmount = ref(0);
 const pinOpen = ref(false);
-const pinPurpose = ref<"package" | "retake">("package");
+const pinPurpose = ref<PaymentPurpose>("package");
+const voucherOpen = ref(false);
+const payNotice = ref<"" | "expired" | "mismatch">("");
+const remainingQrUrl = ref("");
+let paymentPoll = 0;
+// prepare
+const poseSeconds = ref(10);
+const prepareCount = ref(0);
+const prepareAppend = ref(false);
 // capture
 const captureMode = ref<"ready" | "shooting" | "done">("ready");
 const captureTarget = ref(0);
@@ -107,10 +156,14 @@ const nopeId = ref("");
 // retake
 const retakeCount = ref(1);
 const retakeTotal = ref(0);
-const retakeQrUrl = ref("");
-// design
+// design & decorate
 const designPreviewUrl = ref("");
 const sheenNonce = ref(0);
+const editor = ref<InstanceType<typeof StickerEditor> | null>(null);
+const overlayPng = ref<string | null>(null);
+// select: "are you still there?"
+const stillThereOpen = ref(false);
+const stillThereLeft = ref(0);
 // final / printing
 const finalPreviewUrl = ref("");
 const timelapseUrl = ref("");
@@ -118,6 +171,18 @@ const timelapseId = ref<string | null>(null);
 const printing = ref(false);
 const autoPrintAt = ref(0);
 const resultQrUrl = ref("");
+const copies = ref(1);
+const copiesPaid = ref(false);
+const copiesPayOpen = ref(false);
+const lastRender = ref<RenderResult | null>(null);
+const printProblem = ref<PrintStatus | null>(null);
+const problemAt = ref(new Date());
+const reprintWaiting = ref(false);
+const staffCalled = ref(false);
+// qr & thanks
+const shareConsent = ref(false);
+const loyaltyOpen = ref(false);
+const rating = ref(0);
 // misc
 const errorTitle = ref("");
 const errorText = ref("");
@@ -137,8 +202,17 @@ const popularSlot = computed(
 const highlightedSlot = computed(() => pickedSlot.value ?? popularSlot.value);
 const selectedSet = computed(() => new Set(store.selectedCaptureIds));
 const stepIndex = computed(() => STEP[screen.value] ?? -1);
+const dialogOpen = computed(
+  () =>
+    pinOpen.value ||
+    voucherOpen.value ||
+    Boolean(payNotice.value) ||
+    stillThereOpen.value ||
+    copiesPayOpen.value ||
+    loyaltyOpen.value,
+);
 const showTimeoutBar = computed(
-  () => TIMEOUT_BAR_SCREENS.includes(screen.value) && timerSeconds.value > 0 && !pinOpen.value,
+  () => TIMEOUT_BAR_SCREENS.includes(screen.value) && timerSeconds.value > 0 && !dialogOpen.value,
 );
 const retakePrice = computed(() => store.config?.retake_price ?? 10000);
 const retakeMax = computed(() => store.config?.retake_max_shots ?? 5);
@@ -151,16 +225,35 @@ const autoPrintProgress = computed(() => {
   const total = (store.config?.final_preview_timeout_seconds ?? 30) * 1000;
   return Math.min(1, Math.max(0, 1 - (autoPrintAt.value - now.value) / total));
 });
-const pinDescription = computed(() =>
-  pinPurpose.value === "retake"
-    ? `Xác nhận khách đã thanh toán\nchụp lại ${retakeCount.value} lần · ${money(retakeCount.value * retakePrice.value)}`
-    : `Xác nhận khách đã thanh toán\ngói ${store.slotCount} ảnh · ${money(store.packageConfig?.price ?? 0)}`,
-);
-const pinContext = computed(() =>
-  pinPurpose.value === "retake"
-    ? { session_id: store.sessionId, purpose: "retake" as const, retake_shots: retakeCount.value }
-    : { session_id: store.sessionId, purpose: "package" as const, slot_count: store.slotCount },
-);
+const pinDescription = computed(() => {
+  const due = money(payment.value?.remaining ?? 0);
+  if (pinPurpose.value === "retake")
+    return `Xác nhận khách đã thanh toán\nchụp lại ${retakeCount.value} lần · ${due}`;
+  if (pinPurpose.value === "copies")
+    return `Xác nhận khách đã thanh toán\nin thêm ${copies.value - 1} bản · ${due}`;
+  return `Xác nhận khách đã thanh toán\ngói ${store.slotCount} ảnh · ${due}`;
+});
+const pinContext = computed(() => ({
+  session_id: store.sessionId,
+  purpose: pinPurpose.value,
+  reference: payment.value?.reference,
+  ...(pinPurpose.value === "retake" ? { retake_shots: retakeCount.value } : {}),
+  ...(pinPurpose.value === "package" ? { slot_count: store.slotCount } : {}),
+}));
+const autoConfirm = computed(() => Boolean(payment.value?.auto_confirm ?? store.config?.auto_confirm));
+const paymentLeft = computed(() => Math.max(0, Math.ceil((paymentExpiresAt.value - now.value) / 1000)));
+const paymentProgress = computed(() => {
+  const total = store.config?.payment_qr_expiry_seconds ?? 300;
+  return Math.min(1, Math.max(0, paymentLeft.value / total));
+});
+const poseOptions = computed(() => store.config?.pose_seconds_options ?? [5, 10, 20]);
+const maxCopies = computed(() => Math.max(1, store.config?.max_print_copies ?? 1));
+const extraCopyPrice = computed(() => store.config?.extra_copy_price ?? 15000);
+const loyaltyTarget = computed(() => store.config?.loyalty_stamps_for_reward ?? 5);
+const decorateText = computed(() => {
+  const day = new Date();
+  return `Hội bạn thân · ${pad2(day.getDate())}.${pad2(day.getMonth() + 1)}`;
+});
 const stripPhotos = computed(() =>
   Array.from({ length: store.slotCount }, (_, i) => {
     const item = store.selectedCaptures[i];
@@ -185,6 +278,7 @@ const topPill = computed<{ text?: string; tone?: "ready" | "rec" | "holo" }>(() 
   if (screen.value === "retake")
     return { text: `Chụp lại · ${money(retakePrice.value)} / lần`, tone: "holo" };
   if (screen.value === "qr") return { text: "Ảnh đã in xong", tone: "holo" };
+  if (screen.value === "deviceError") return { text: "Cần hỗ trợ", tone: "holo" };
   return {};
 });
 
@@ -292,8 +386,25 @@ function clearSessionState(): void {
   pickedSlot.value = null;
   pinOpen.value = false;
   printing.value = false;
+  stopPaymentWatch();
+  payment.value = null;
   paymentQrUrl.value = "";
+  remainingQrUrl.value = "";
+  voucherOpen.value = false;
+  payNotice.value = "";
   resultQrUrl.value = "";
+  overlayPng.value = null;
+  stillThereOpen.value = false;
+  copies.value = 1;
+  copiesPaid.value = false;
+  copiesPayOpen.value = false;
+  lastRender.value = null;
+  printProblem.value = null;
+  reprintWaiting.value = false;
+  staffCalled.value = false;
+  shareConsent.value = false;
+  loyaltyOpen.value = false;
+  rating.value = 0;
   store.resetSession();
   store.setFinalResult(null);
   hideError();
@@ -305,13 +416,6 @@ async function returnToIdle(move: Move = "back"): Promise<void> {
   const ok = await navigate("idle", move);
   if (!ok) return;
   clearSessionState();
-  startIdleLoop();
-}
-
-function startIdleLoop(): void {
-  intervals.push(
-    window.setInterval(() => (idlePhoto.value = (idlePhoto.value + 1) % IDLE_PHOTOS.length), 4000),
-  );
 }
 
 // ───────────── 01 idle → 02 package ─────────────
@@ -328,24 +432,162 @@ async function pickPackage(frameType: FrameTypeConfig): Promise<void> {
   sfx.pop();
   clearTimers();
   store.selectPackage(frameType.slot_count);
-  paymentQrUrl.value = await makeQr(`VIETQR:TSL:${store.sessionId}:${frameType.price}`);
+  try {
+    await openPayment("package", frameType.slot_count);
+  } catch (error) {
+    pickedSlot.value = null;
+    showError("Chưa tạo được mã thanh toán", error, () => void pickPackage(frameType));
+    return;
+  }
   await sleep(380);
   const ok = await navigate("payment");
   pickedSlot.value = null;
   if (!ok) return;
   shownAmount.value = 0;
-  stopCounters.push(countUp(0, frameType.price, 600, (value) => (shownAmount.value = value)));
-  setTimer(() => void returnToIdle(), store.config?.payment_timeout_seconds ?? 180);
+  stopCounters.push(
+    countUp(0, payment.value?.amount ?? frameType.price, 600, (value) => (shownAmount.value = value)),
+  );
+  armPaymentScreenTimer();
+  startPaymentWatch();
 }
 
 async function backToPackage(): Promise<void> {
+  stopPaymentWatch();
+  if (payment.value) void cancelPayment(payment.value.reference).catch(() => undefined);
+  payment.value = null;
   const ok = await navigate("package", "back");
   if (ok) setTimer(() => void returnToIdle(), store.config?.package_select_timeout_seconds ?? 60);
 }
 
-// ───────────── 03 payment / PIN ─────────────
+// ───────────── 03 payment / PIN / voucher ─────────────
 
-function openPin(purpose: "package" | "retake"): void {
+/** Create the payment request (server prices, voucher) and its VietQR image. */
+async function openPayment(
+  purpose: PaymentPurpose,
+  quantity: number,
+  voucherCode?: string | null,
+): Promise<void> {
+  stopPaymentWatch();
+  const created = await createPayment(store.sessionId, purpose, quantity, voucherCode);
+  await applyPayment(created);
+}
+
+async function applyPayment(next: Payment): Promise<void> {
+  payment.value = next;
+  paymentExpiresAt.value = Date.now() + next.expires_in * 1000;
+  now.value = Date.now();
+  paymentQrUrl.value = next.qr_payload ? await makeQr(next.qr_payload) : "";
+}
+
+function armPaymentScreenTimer(): void {
+  // the QR may expire first; the session is only dropped well after that
+  const qrSeconds = store.config?.payment_qr_expiry_seconds ?? 300;
+  setTimer(() => void returnToIdle(), Math.max(store.config?.payment_timeout_seconds ?? 180, qrSeconds + 60));
+  tick(500);
+}
+
+function stopPaymentWatch(): void {
+  window.clearInterval(paymentPoll);
+  paymentPoll = 0;
+}
+
+/** Follow the open payment: bank transfers confirmed by the server, and the QR lifetime. */
+function startPaymentWatch(): void {
+  stopPaymentWatch();
+  let polling = false;
+  paymentPoll = window.setInterval(async () => {
+    const current = payment.value;
+    if (!current || polling) return;
+    if (
+      current.status !== "paid" &&
+      !payNotice.value &&
+      Date.now() > paymentExpiresAt.value &&
+      current.qr_payload
+    ) {
+      sfx.error();
+      payNotice.value = "expired";
+    }
+    if (!autoConfirm.value) return;
+    polling = true;
+    try {
+      onPaymentUpdate(await getPayment(current.reference));
+    } catch (error) {
+      console.warn(error);
+    } finally {
+      polling = false;
+    }
+  }, PAYMENT_POLL_MS);
+}
+
+function onPaymentUpdate(next: Payment): void {
+  const previous = payment.value;
+  if (!previous || previous.reference !== next.reference) return;
+  payment.value = next;
+  if (next.status === "paid") {
+    void onPaid(centerOf(document.querySelector(".qr-card")) ?? { x: innerWidth / 2, y: innerHeight / 2 });
+  } else if (next.status === "partial" && next.received !== previous.received) {
+    sfx.error();
+    paymentExpiresAt.value = Date.now() + next.expires_in * 1000;
+    void (async () => {
+      remainingQrUrl.value = next.qr_payload ? await makeQr(next.qr_payload) : "";
+      payNotice.value = "mismatch";
+    })();
+  }
+}
+
+async function renewQr(): Promise<void> {
+  const current = payment.value;
+  if (!current) return;
+  try {
+    await applyPayment(await renewPayment(current.reference));
+    payNotice.value = "";
+    sfx.pop();
+  } catch (error) {
+    showError("Chưa tạo được mã mới", error, () => void renewQr());
+  }
+}
+
+async function refreshPayment(): Promise<void> {
+  const current = payment.value;
+  if (!current) return;
+  try {
+    onPaymentUpdate(await getPayment(current.reference));
+  } catch (error) {
+    console.warn(error);
+  }
+}
+
+function callStaff(): void {
+  payNotice.value = "";
+  openPin(pinPurpose.value);
+}
+
+function openVoucher(): void {
+  sfx.pop();
+  voucherOpen.value = true;
+}
+
+async function applyVoucher(result: VoucherCheck): Promise<void> {
+  voucherOpen.value = false;
+  const previous = payment.value;
+  try {
+    await openPayment("package", store.slotCount, result.code);
+  } catch (error) {
+    showError("Chưa áp dụng được mã", error);
+    if (previous) await applyPayment(previous);
+    startPaymentWatch();
+    return;
+  }
+  const from = shownAmount.value;
+  stopCounters.push(countUp(from, payment.value?.amount ?? 0, 500, (value) => (shownAmount.value = value)));
+  if (payment.value?.status === "paid") {
+    void onPaid(centerOf(document.querySelector(".qr-card")) ?? { x: innerWidth / 2, y: innerHeight / 2 });
+    return;
+  }
+  startPaymentWatch();
+}
+
+function openPin(purpose: PaymentPurpose): void {
   sfx.pop();
   pinPurpose.value = purpose;
   pinOpen.value = true;
@@ -353,10 +595,56 @@ function openPin(purpose: "package" | "retake"): void {
 
 async function onPinSuccess(origin: Point): Promise<void> {
   pinOpen.value = false;
-  const purpose = pinPurpose.value;
-  const count = purpose === "retake" ? retakeCount.value : (store.packageConfig?.shots_to_take ?? 0);
-  const ok = await navigate("capture", "bubble", origin, true);
-  if (ok) void prepareCapture(count, purpose === "retake");
+  await onPaid(origin);
+}
+
+/** Money arrived (PIN, transfer or a free voucher): go on with what it paid for. */
+async function onPaid(origin: Point): Promise<void> {
+  const paid = payment.value;
+  stopPaymentWatch();
+  pinOpen.value = false;
+  voucherOpen.value = false;
+  payNotice.value = "";
+  if (!paid) return;
+  if (paid.purpose === "copies") {
+    copiesPayOpen.value = false;
+    copiesPaid.value = true;
+    sfx.chime();
+    void printFinal();
+    return;
+  }
+  sfx.chime();
+  paidAmount.value = paid.amount;
+  paidPurpose.value = paid.purpose;
+  prepareCount.value =
+    paid.purpose === "retake" ? retakeCount.value : (store.packageConfig?.shots_to_take ?? 0);
+  prepareAppend.value = paid.purpose === "retake";
+  const ok = await navigate("paySuccess", "bubble", origin, true);
+  if (ok) setTimer(() => void openPrepare(), 3);
+}
+
+// ───────────── 03c pay success → 03g prepare ─────────────
+
+async function openPrepare(): Promise<void> {
+  const options = poseOptions.value;
+  const preferred = store.config?.countdown_seconds ?? 10;
+  if (!options.includes(poseSeconds.value))
+    poseSeconds.value = options.reduce((best, value) =>
+      Math.abs(value - preferred) < Math.abs(best - preferred) ? value : best,
+    );
+  if (!prepareAppend.value) store.clearCaptures();
+  captureTarget.value = store.captures.length + prepareCount.value;
+  currentShot.value = store.captures.length + 1;
+  captureMode.value = "ready";
+  const ok = await navigate("prepare");
+  if (!ok) return;
+  await armCamera();
+}
+
+function choosePose(seconds: number): void {
+  if (seconds === poseSeconds.value) return;
+  sfx.pop();
+  poseSeconds.value = seconds;
 }
 
 // ───────────── 04 capture ─────────────
@@ -368,6 +656,7 @@ async function onPinSuccess(origin: Point): Promise<void> {
  */
 const cameraSource = ref<"server" | "browser" | "samples">("server");
 const browserVideo = ref<HTMLVideoElement | null>(null);
+let serverCameraUsable = false;
 
 async function useBrowserCamera(): Promise<boolean> {
   // the admin can turn the webcam fallback off (the public demo always allows it)
@@ -385,13 +674,19 @@ async function useBrowserCamera(): Promise<boolean> {
   }
 }
 
+/**
+ * Real server camera (DSLR / configured webcam) first. When none is connected, i.e. only the demo
+ * VirtualCamera runs, use the laptop webcam (or the phone camera) instead, and the demo camera only
+ * as a last resort so the flow keeps working.
+ */
 async function chooseCameraSource(): Promise<void> {
-  if (!DEMO && (await serverCameraAvailable())) {
+  const status = await serverCameraStatus();
+  serverCameraUsable = status.available;
+  if (status.available && !status.virtual) {
     cameraSource.value = "server";
     return;
   }
   if (await useBrowserCamera()) return;
-  // demo without camera permission: keep the flow usable with sample photos
   cameraSource.value = DEMO ? "samples" : "server";
 }
 
@@ -411,18 +706,9 @@ async function takePhoto(): Promise<CaptureResult> {
   return await capture();
 }
 
-async function prepareCapture(count: number, append: boolean): Promise<void> {
-  if (!append) store.clearCaptures();
-  captureTarget.value = store.captures.length + count;
-  currentShot.value = store.captures.length + 1;
-  captureMode.value = "ready";
-  captureCaption.value = "Sẵn sàng chưa?";
-  await armCamera();
-}
-
 async function armCamera(): Promise<void> {
   await chooseCameraSource();
-  if (cameraSource.value === "server" && !DEMO && !(await serverCameraAvailable())) {
+  if (cameraSource.value === "server" && !DEMO && !serverCameraUsable) {
     showError(
       "Không mở được camera",
       "Camera của máy đang bận hoặc chưa kết nối, và trình duyệt cũng không được phép dùng webcam. " +
@@ -431,12 +717,25 @@ async function armCamera(): Promise<void> {
     );
     return;
   }
-  setTimer(() => void startShooting(), store.config?.get_ready_seconds ?? 3);
+  // nobody pressed "start": begin anyway so a paid session never gets stuck
+  setTimer(() => void startFromPrepare(), PREPARE_SECONDS);
 }
 
-// release the webcam as soon as the guest leaves the capture screen
+async function startFromPrepare(): Promise<void> {
+  if (screen.value !== "prepare" || errorTitle.value) return;
+  captureCaption.value = "Tạo dáng nào!";
+  const ok = await navigate("capture", "shutter");
+  if (!ok) return;
+  if (cameraSource.value === "browser") {
+    await nextTick();
+    if (browserVideo.value) await startBrowserCamera(browserVideo.value).catch(() => undefined);
+  }
+  await startShooting();
+}
+
+// release the webcam as soon as the guest leaves the camera screens
 watch(screen, (next) => {
-  if (next !== "capture") stopBrowserCamera();
+  if (next !== "capture" && next !== "prepare") stopBrowserCamera();
 });
 
 function triggerFlash(): void {
@@ -462,18 +761,14 @@ async function runCountdown(seconds: number, runId: number): Promise<boolean> {
 async function startShooting(): Promise<void> {
   if (captureMode.value !== "ready" || screen.value !== "capture") return;
   clearTimers();
-  const config = store.config;
-  if (!config) return;
   captureMode.value = "shooting";
-  // "Shutter Blocks" when the actual shooting starts
-  await overlay.value?.shutter();
   const runId = captureRunId.value + 1;
   captureRunId.value = runId;
 
   try {
     while (store.captures.length < captureTarget.value) {
       currentShot.value = store.captures.length + 1;
-      if (!(await runCountdown(config.countdown_seconds, runId))) return;
+      if (!(await runCountdown(poseSeconds.value, runId))) return;
       triggerFlash();
       sfx.shutter();
       captureCaption.value = "Bắt được rồi!";
@@ -513,11 +808,30 @@ async function openPhotoSelect(move: Move): Promise<void> {
 
 function armSelectTimer(): void {
   clearTimers();
-  const config = store.config;
-  setTimer(
-    () => void autoSelectAndContinue(),
-    (config?.photo_select_warn_seconds ?? 45) + (config?.photo_select_grace_seconds ?? 15),
+  stillThereOpen.value = false;
+  setTimer(() => showStillThere(), store.config?.photo_select_warn_seconds ?? 45);
+}
+
+/** 05c · After a while without touches: count down, then pick the first photos and go on. */
+function showStillThere(): void {
+  if (screen.value !== "photoSelect") return;
+  sfx.pop();
+  stillThereLeft.value = store.config?.photo_select_grace_seconds ?? 15;
+  stillThereOpen.value = true;
+  intervals.push(
+    window.setInterval(() => {
+      stillThereLeft.value -= 1;
+      if (stillThereLeft.value === 0) {
+        stillThereOpen.value = false;
+        autoSelectAndContinue();
+      }
+    }, 1000),
   );
+}
+
+function stillHere(): void {
+  sfx.pop();
+  armSelectTimer();
 }
 
 function setStripSlot(el: Element | null, index: number): void {
@@ -569,9 +883,26 @@ function autoSelectAndContinue(): void {
 async function openRetake(): Promise<void> {
   retakeCount.value = 1;
   retakeTotal.value = retakePrice.value;
-  retakeQrUrl.value = await makeQr(`VIETQR:TSL:${store.sessionId}-R:${retakePrice.value}`);
+  pinPurpose.value = "retake";
+  try {
+    await openPayment("retake", 1);
+  } catch (error) {
+    showError("Chưa tạo được mã thanh toán", error, () => void openRetake());
+    return;
+  }
   const ok = await navigate("retake");
-  if (ok) setTimer(() => void openPhotoSelect("back"), store.config?.payment_timeout_seconds ?? 180);
+  if (!ok) return;
+  setTimer(() => void leaveRetake(), store.config?.payment_timeout_seconds ?? 180);
+  tick(500);
+  startPaymentWatch();
+}
+
+async function leaveRetake(): Promise<void> {
+  stopPaymentWatch();
+  if (payment.value) void cancelPayment(payment.value.reference).catch(() => undefined);
+  payment.value = null;
+  payNotice.value = "";
+  await openPhotoSelect("back");
 }
 
 async function chooseRetake(count: number): Promise<void> {
@@ -580,7 +911,12 @@ async function chooseRetake(count: number): Promise<void> {
   const from = retakeTotal.value;
   retakeCount.value = count;
   stopCounters.push(countUp(from, count * retakePrice.value, 360, (value) => (retakeTotal.value = value)));
-  retakeQrUrl.value = await makeQr(`VIETQR:TSL:${store.sessionId}-R:${count * retakePrice.value}`);
+  try {
+    await openPayment("retake", count);
+    startPaymentWatch();
+  } catch (error) {
+    showError("Chưa tạo được mã thanh toán", error);
+  }
 }
 
 // ───────────── 06 colour & frame ─────────────
@@ -609,6 +945,7 @@ async function refreshDesignPreview(): Promise<void> {
 async function openFilter(move: Move = "forward"): Promise<void> {
   if (!store.hasExactSelection) return;
   store.ensureTemplateSelected();
+  overlayPng.value = null; // decorations belong to one collage; redone after changing colour or frame
   // render the preview while the blocks cover the screen
   const preview = refreshDesignPreview();
   const ok = await navigate("filter", move);
@@ -637,6 +974,60 @@ async function chooseTemplate(templateId: string): Promise<void> {
   await refreshDesignPreview();
 }
 
+// ───────────── 06b decorate ─────────────
+
+async function openDecorate(): Promise<void> {
+  if (!designPreviewUrl.value || !store.selectedTemplate) return void openFinal();
+  const ok = await navigate("decorate");
+  if (!ok) return;
+  const config = store.config;
+  // long idle: keep what was added and move on
+  setTimer(
+    () => void finishDecorate(),
+    (config?.filter_select_warn_seconds ?? 45) * 2 + (config?.filter_select_grace_seconds ?? 10),
+  );
+}
+
+async function finishDecorate(): Promise<void> {
+  if (screen.value !== "decorate") return;
+  overlayPng.value = (await editor.value?.exportOverlay()) ?? null;
+  await openFinal();
+}
+
+function skipDecorate(): void {
+  overlayPng.value = null;
+  void openFinal();
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+/** Preview of the collage with the guest's decorations on top (the server does the same for the print). */
+async function composeFinalPreview(): Promise<string> {
+  if (!overlayPng.value || !designPreviewUrl.value) return designPreviewUrl.value;
+  try {
+    const [photo, deco] = await Promise.all([loadImage(designPreviewUrl.value), loadImage(overlayPng.value)]);
+    const canvas = document.createElement("canvas");
+    canvas.width = photo.naturalWidth;
+    canvas.height = photo.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return designPreviewUrl.value;
+    ctx.drawImage(photo, 0, 0);
+    ctx.drawImage(deco, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+    return blob ? URL.createObjectURL(blob) : designPreviewUrl.value;
+  } catch (error) {
+    console.warn(error);
+    return designPreviewUrl.value;
+  }
+}
+
 // ───────────── 07 result & print ─────────────
 
 async function startTimelapseRender(): Promise<void> {
@@ -659,10 +1050,18 @@ async function openFinal(move: Move = "forward"): Promise<void> {
     showError("Thiếu ảnh hoặc khung", "Hãy chọn đủ ảnh rồi thử lại.", () => void openFilter());
     return;
   }
+  const composed = composeFinalPreview();
   const ok = await navigate("final", move);
   if (!ok) return;
-  finalPreviewUrl.value = designPreviewUrl.value;
+  const preview = await composed;
+  if (finalPreviewUrl.value.startsWith("blob:") && finalPreviewUrl.value !== designPreviewUrl.value)
+    URL.revokeObjectURL(finalPreviewUrl.value);
+  finalPreviewUrl.value = preview;
   if (!timelapseId.value) void startTimelapseRender();
+  armAutoPrint();
+}
+
+function armAutoPrint(): void {
   const seconds = store.config?.final_preview_timeout_seconds ?? 30;
   autoPrintAt.value = Date.now() + seconds * 1000;
   now.value = Date.now();
@@ -670,9 +1069,47 @@ async function openFinal(move: Move = "forward"): Promise<void> {
   setTimer(() => void printFinal(), seconds);
 }
 
+function changeCopies(delta: number): void {
+  const next = Math.min(maxCopies.value, Math.max(1, copies.value + delta));
+  if (next === copies.value) return;
+  sfx.pop();
+  copies.value = next;
+  copiesPaid.value = false;
+}
+
+/** More than one print: the extra copies are paid first (QR or staff PIN). */
+async function openCopiesPayment(): Promise<void> {
+  clearTimers();
+  pinPurpose.value = "copies";
+  try {
+    await openPayment("copies", copies.value - 1);
+  } catch (error) {
+    showError("Chưa tạo được mã thanh toán", error, () => void openCopiesPayment());
+    return;
+  }
+  copiesPayOpen.value = true;
+  tick(500);
+  startPaymentWatch();
+}
+
+function cancelCopiesPayment(): void {
+  stopPaymentWatch();
+  if (payment.value) void cancelPayment(payment.value.reference).catch(() => undefined);
+  payment.value = null;
+  payNotice.value = "";
+  copiesPayOpen.value = false;
+  copies.value = 1;
+  armAutoPrint();
+}
+
 async function printFinal(event?: MouseEvent): Promise<void> {
   const template = store.selectedTemplate;
   if (!template || printing.value) return;
+  if (copies.value > 1 && !copiesPaid.value) {
+    // the guest asked for more copies: pay first; the auto-print timer just prints the included one
+    if (event) return void openCopiesPayment();
+    copies.value = 1;
+  }
   const origin =
     centerOf(event?.currentTarget as Element | undefined) ?? centerOf(document.querySelector(".print-btn"));
   clearTimers();
@@ -688,15 +1125,21 @@ async function printFinal(event?: MouseEvent): Promise<void> {
         session_id: store.sessionId,
         digital_delivery: store.digitalDeliveryEnabled,
         timelapse_id: timelapseId.value,
+        copies: copies.value,
+        overlay_png: overlayPng.value,
       }),
       sleep((store.config?.printing_mock_seconds ?? 3) * 1000),
     ]);
     store.setFinalResult(result);
+    lastRender.value = result;
     const downloadUrl =
       result.cloud_url ?? `${window.location.origin}${result.download_url || result.gallery_url}`;
     resultQrUrl.value = await makeQr(downloadUrl);
-    const ok = await navigate("qr", "bubble", origin, true);
-    if (ok) setTimer(() => void openThanks(), store.config?.qr_download_seconds ?? 18);
+    if (result.print && !result.print.ok) {
+      await openDeviceError(result.print);
+      return;
+    }
+    await goToQr(origin);
   } catch (error) {
     showError("Chưa in được ảnh", error, () => void printFinal());
   } finally {
@@ -704,16 +1147,104 @@ async function printFinal(event?: MouseEvent): Promise<void> {
   }
 }
 
+// ───────────── E1 device error ─────────────
+
+async function openDeviceError(problem: PrintStatus): Promise<void> {
+  sfx.error();
+  printProblem.value = problem;
+  problemAt.value = new Date();
+  reprintWaiting.value = false;
+  staffCalled.value = false;
+  const ok = await navigate("deviceError", "back");
+  // nobody around for a long time: hand out the digital photos and finish
+  if (ok) setTimer(() => void goToQr(), 600);
+}
+
+function waitForPrinter(): void {
+  const render = lastRender.value;
+  if (reprintWaiting.value || !render) return;
+  sfx.pop();
+  reprintWaiting.value = true;
+  let busy = false;
+  intervals.push(
+    window.setInterval(async () => {
+      if (busy || screen.value !== "deviceError") return;
+      busy = true;
+      try {
+        const status = await printerStatus();
+        if (!status.ok) {
+          printProblem.value = status;
+          return;
+        }
+        const printed = await printAgain(render.id, copies.value, store.sessionId);
+        if (printed.ok) {
+          reprintWaiting.value = false;
+          sfx.chime();
+          await goToQr();
+        } else printProblem.value = printed;
+      } catch (error) {
+        console.warn(error);
+      } finally {
+        busy = false;
+      }
+    }, 3000),
+  );
+}
+
+function callStaffForPrinter(): void {
+  sfx.chime();
+  staffCalled.value = true;
+}
+
 // ───────────── 08 QR → 09 thanks ─────────────
 
+async function goToQr(origin?: Point): Promise<void> {
+  const ok = await navigate("qr", origin ? "bubble" : "forward", origin, Boolean(origin));
+  if (ok) armQrTimer();
+}
+
+function armQrTimer(): void {
+  setTimer(() => void openThanks(), store.config?.qr_download_seconds ?? 18);
+}
+
+function toggleShareConsent(): void {
+  shareConsent.value = !shareConsent.value;
+  sfx.pop();
+  void sendFeedback(store.sessionId, { share_consent: shareConsent.value }).catch(() => undefined);
+}
+
+function openLoyalty(): void {
+  sfx.pop();
+  clearTimers();
+  loyaltyOpen.value = true;
+}
+
+function closeLoyalty(): void {
+  loyaltyOpen.value = false;
+  if (screen.value === "qr") armQrTimer();
+}
+
 async function openThanks(): Promise<void> {
+  loyaltyOpen.value = false;
   const ok = await navigate("thankYou");
   if (ok) setTimer(() => void returnToIdle("forward"), store.config?.thank_you_seconds ?? 9);
+}
+
+function rate(value: number): void {
+  if (rating.value) return;
+  sfx.chime();
+  rating.value = value;
+  void sendFeedback(store.sessionId, { rating: value }).catch(() => undefined);
 }
 
 // ───────────── global micro-interactions ─────────────
 
 function onPointerDown(event: PointerEvent): void {
+  if (stillThereOpen.value) {
+    event.preventDefault();
+    stillHere();
+    return;
+  }
   const target = event.target as HTMLElement;
   if (target.closest("button, a, input, label")) return;
   const id = (tapId += 1);
@@ -734,7 +1265,6 @@ onMounted(async () => {
     sfx.setSoundEnabled(config.sound_enabled);
     clearSessionState();
     screen.value = "idle";
-    startIdleLoop();
   } catch (error) {
     screen.value = "idle";
     showError("Không tải được kiosk", error, () => window.location.reload());
@@ -790,10 +1320,6 @@ onBeforeUnmount(() => clearTimers());
               --rot: 18deg;
             "
           />
-          <div
-            class="ring-deco e-bg"
-            style="--i: 2; --fy: 20rem; left: 52rem; top: 38rem; width: 36rem; height: 36rem"
-          />
         </div>
 
         <section class="idle-copy">
@@ -823,12 +1349,16 @@ onBeforeUnmount(() => clearTimers());
         </section>
 
         <section class="idle-art">
-          <div class="idle-capsule chrome-ring e-card" style="--i: 2; --rot: 0deg">
-            <div class="idle-capsule-inner">
-              <Transition name="xfade">
-                <img :key="idlePhoto" :src="IDLE_PHOTOS[idlePhoto]" alt="" />
-              </Transition>
+          <span class="idle-glow e-bg" style="--i: 0" />
+          <!-- the couple steps out of the arch: same photo, cut out, laid over the frame -->
+          <div class="idle-arch-wrap e-card" style="--i: 2; --rot: 0deg">
+            <div class="idle-arch">
+              <div class="idle-arch-inner">
+                <img class="idle-arch-photo" :src="heroImg" alt="Khách chụp ảnh tại TSL" />
+                <span class="idle-arch-glow" />
+              </div>
             </div>
+            <img class="idle-arch-cutout" :src="heroCutout" alt="" />
           </div>
           <div class="idle-strip e-card" style="--i: 3; --rot: -8deg"><img :src="stripA" alt="" /></div>
           <div class="idle-circle chrome-ring e-card" style="--i: 4; --rot: 0deg">
@@ -842,12 +1372,12 @@ onBeforeUnmount(() => clearTimers());
           </div>
           <Star
             class="e-pop spin-slow"
-            style="--i: 6; position: absolute; left: 23rem; top: 41rem; width: 5.6rem"
+            style="--i: 6; position: absolute; left: 28rem; top: 4rem; width: 5.6rem; --rot: 8deg"
           />
           <Star
             class="e-pop spin-slow"
             color="#C9B8FF"
-            style="--i: 7; position: absolute; right: 47rem; top: 2rem; width: 3.4rem"
+            style="--i: 7; position: absolute; left: 46rem; top: 11rem; width: 3.4rem"
           />
         </section>
 
@@ -996,6 +1526,9 @@ onBeforeUnmount(() => clearTimers());
             <span class="sticker" style="--rot: -3deg"
               >✦ Gói {{ store.slotCount }} ảnh · {{ store.shotsToTake }} kiểu</span
             >
+            <span v-if="payment?.voucher_code" class="sticker sticker--cobalt" style="--rot: 3deg"
+              >{{ payment.voucher_code }} · −{{ money(payment.discount) }}</span
+            >
           </div>
           <h1 class="display pay-amount">
             <span class="ln"
@@ -1005,13 +1538,20 @@ onBeforeUnmount(() => clearTimers());
             >
           </h1>
           <div class="pay-text e-pop" style="--i: 2">
-            Quét mã chuyển khoản,<br /><span class="accent">hoặc trả tại quầy.</span>
+            <template v-if="paymentQrUrl"
+              >Quét mã chuyển khoản,<br /><span class="accent">hoặc trả tại quầy.</span></template
+            >
+            <template v-else
+              >Thanh toán tại quầy,<br /><span class="accent">nhân viên xác nhận.</span></template
+            >
           </div>
           <div class="waiting e-pop" style="--i: 3">
             <i class="waiting-dot" />
             <div>
-              <div class="waiting-title">Đang chờ xác nhận</div>
-              <div class="mono muted waiting-sub">Máy tự mở khi nhân viên duyệt</div>
+              <div class="waiting-title">{{ autoConfirm ? "Đang chờ thanh toán" : "Đang chờ xác nhận" }}</div>
+              <div class="mono muted waiting-sub">
+                {{ autoConfirm ? "Tự động xác nhận khi nhận được tiền" : "Máy tự mở khi nhân viên duyệt" }}
+              </div>
             </div>
           </div>
           <div class="row-actions e-cta" style="--i: 4">
@@ -1024,6 +1564,15 @@ onBeforeUnmount(() => clearTimers());
               Nhân viên xác nhận · PIN
             </button>
           </div>
+          <button
+            v-if="store.config?.has_vouchers && !payment?.voucher_code"
+            class="mono voucher-link e-pop"
+            style="--i: 5"
+            type="button"
+            @click="openVoucher"
+          >
+            ✦ Có mã giảm giá? Nhập tại đây
+          </button>
         </section>
 
         <section class="qr-side">
@@ -1031,10 +1580,21 @@ onBeforeUnmount(() => clearTimers());
           <div class="qr-card chrome-ring e-card" style="--i: 2; --rot: 0deg">
             <span class="sheen" />
             <div class="qr-card-inner">
-              <img v-if="paymentQrUrl" class="qr-img" :src="paymentQrUrl" alt="Mã thanh toán" />
+              <img v-if="paymentQrUrl" class="qr-img" :src="paymentQrUrl" alt="Mã chuyển khoản VietQR" />
+              <div v-else class="qr-counter">
+                <Icon name="lock" :size="64" :stroke="1.6" />
+                <span class="display">Trả tại quầy</span>
+                <span class="mono muted">Đọc mã phiên cho nhân viên</span>
+              </div>
               <div class="qr-meta">
                 <span class="mono muted">Mã phiên</span>
                 <span class="display qr-code">{{ sessionCode }}</span>
+              </div>
+              <div v-if="paymentQrUrl" class="qr-expiry">
+                <span class="qr-expiry-bar"><i :style="{ transform: `scaleX(${paymentProgress})` }" /></span>
+                <span class="mono"
+                  >Hết hạn sau {{ pad2(Math.floor(paymentLeft / 60)) }}:{{ pad2(paymentLeft % 60) }}</span
+                >
               </div>
             </div>
           </div>
@@ -1043,6 +1603,132 @@ onBeforeUnmount(() => clearTimers());
             style="--i: 4; position: absolute; left: -3.6rem; top: -3rem; width: 6.4rem"
           />
         </section>
+      </main>
+
+      <!-- ───────── 03c payment received ───────── -->
+      <main v-else-if="screen === 'paySuccess'" class="screen paid">
+        <div class="deco">
+          <div
+            class="capsule-deco e-bg"
+            style="
+              --i: 0;
+              --fx: 30rem;
+              right: -8rem;
+              top: 48rem;
+              width: 60rem;
+              height: 22rem;
+              background: #c9b8ff;
+              --rot: -18deg;
+            "
+          />
+          <div
+            class="capsule-deco e-bg"
+            style="
+              --i: 1;
+              --fx: -30rem;
+              left: -6rem;
+              top: 10rem;
+              width: 34rem;
+              height: 13rem;
+              background: #a8f0e0;
+              --rot: 16deg;
+            "
+          />
+        </div>
+        <div class="paid-badge e-pop" style="--i: 0">
+          <span class="chrome-sphere paid-sphere" />
+          <span class="paid-check"><Icon name="check" :size="72" :stroke="3" /></span>
+          <Star class="spin-slow" style="position: absolute; right: -1rem; top: 0.4rem; width: 5.6rem" />
+          <Star
+            class="spin-slow"
+            color="#C9B8FF"
+            style="position: absolute; left: -2rem; bottom: 2rem; width: 4rem"
+          />
+        </div>
+        <h1 class="display paid-title">
+          <span class="ln"
+            ><span class="e-line" style="--i: 1"
+              >Thanh toán <span class="accent">thành công!</span></span
+            ></span
+          >
+        </h1>
+        <div class="paid-sub e-pop" style="--i: 2">
+          Đã nhận {{ money(paidAmount) }} ·
+          <template v-if="paidPurpose === 'retake'">Chụp lại {{ prepareCount }} lần</template>
+          <template v-else>Gói {{ store.slotCount }} ảnh · {{ store.shotsToTake }} kiểu chụp</template>
+        </div>
+        <div class="paid-row e-cta" style="--i: 3">
+          <span class="pill pill--holo mono">Tự chuyển sang chuẩn bị chụp sau {{ timerSeconds }} giây</span>
+          <button class="btn btn-primary btn-lg btn-arrowed" type="button" @click="openPrepare">
+            Bắt đầu ngay
+            <span class="btn-arrow"><Icon name="arrow-right" :size="23" :stroke="2.6" /></span>
+          </button>
+        </div>
+      </main>
+
+      <!-- ───────── 03g get ready: posing time ───────── -->
+      <main v-else-if="screen === 'prepare'" class="screen prep">
+        <div class="prep-live chrome-ring e-card" style="--i: 0; --rot: 0deg">
+          <div class="prep-live-inner">
+            <video
+              v-if="cameraSource === 'browser'"
+              ref="browserVideo"
+              class="live-img live-img--mirror"
+              autoplay
+              muted
+              playsinline
+            />
+            <img v-else class="live-img" :src="LIVE_STREAM_URL" alt="Camera xem thử" />
+            <span class="prep-guide" />
+            <span class="pill mono prep-chip">Đứng trong khung nét đứt</span>
+          </div>
+        </div>
+        <aside class="prep-side">
+          <div class="mono muted e-pop" style="--i: 1">Bước 03 — Chuẩn bị</div>
+          <h1 class="display prep-title">
+            <span class="ln"
+              ><span class="e-line" style="--i: 2">Sẵn sàng <span class="accent">chưa?</span></span></span
+            >
+          </h1>
+          <ol class="prep-steps">
+            <li
+              v-for="(step, index) in [
+                ['Đứng vào giữa khung', 'Cả nhóm nhìn thấy mặt mình trên màn hình'],
+                ['Nhìn vào ống kính', 'Camera ở ngay phía trên màn hình'],
+                ['Đổi dáng mỗi kiểu', `${prepareCount} kiểu liên tiếp, bạn chọn thời gian tạo dáng bên dưới`],
+              ]"
+              :key="index"
+              class="e-pop"
+              :style="{ '--i': index + 3 }"
+            >
+              <span class="display prep-num">{{ index + 1 }}</span>
+              <div>
+                <div class="prep-step-title">{{ step[0] }}</div>
+                <div class="prep-step-sub">{{ step[1] }}</div>
+              </div>
+            </li>
+          </ol>
+          <div class="mono muted e-pop" style="--i: 6">Thời gian tạo dáng mỗi kiểu</div>
+          <div class="prep-poses e-pop" style="--i: 7">
+            <button
+              v-for="seconds in poseOptions"
+              :key="seconds"
+              class="display pose-pick"
+              :class="{ active: seconds === poseSeconds }"
+              type="button"
+              :aria-pressed="seconds === poseSeconds"
+              @click="choosePose(seconds)"
+            >
+              {{ seconds }} giây
+            </button>
+          </div>
+          <div class="e-cta" style="--i: 8">
+            <button class="btn btn-primary btn-lg btn-arrowed" type="button" @click="startFromPrepare">
+              Bắt đầu chụp
+              <span class="btn-arrow"><Icon name="camera" :size="24" /></span>
+            </button>
+          </div>
+        </aside>
       </main>
 
       <!-- ───────── 04 capture ───────── -->
@@ -1082,31 +1768,14 @@ onBeforeUnmount(() => clearTimers());
               <span v-if="countdown > 0" :key="countdown" class="display count-num">{{ countdown }}</span>
               <Icon v-else class="count-cam" name="camera" :size="96" :stroke="2" />
             </div>
-            <div v-else-if="captureMode === 'ready'" class="count-disc ready-disc e-pop" style="--i: 2">
-              <Icon name="camera" :size="80" :stroke="2" />
-            </div>
             <div class="flash" :class="{ on: flashOn }" />
           </div>
         </div>
 
         <aside class="cap-side">
-          <div class="mono muted e-pop" style="--i: 1">
-            Bước 03 — {{ captureMode === "ready" ? "Chuẩn bị" : "Đang chụp" }}
-          </div>
+          <div class="mono muted e-pop" style="--i: 1">Bước 03 — Đang chụp</div>
           <div :key="captureCaption" class="display cap-caption caption-pop">{{ captureCaption }}</div>
-          <div class="cap-sub e-pop" style="--i: 2">
-            {{
-              captureMode === "ready"
-                ? `Mỗi kiểu đếm ngược ${store.config?.countdown_seconds ?? 10} giây`
-                : "Nhìn thẳng vào ống kính nhé"
-            }}
-          </div>
-          <div v-if="captureMode === 'ready'" class="e-cta" style="--i: 3">
-            <button class="btn btn-primary btn-md btn-arrowed" type="button" @click="startShooting">
-              Bắt đầu chụp
-              <span class="btn-arrow"><Icon name="camera" :size="22" /></span>
-            </button>
-          </div>
+          <div class="cap-sub e-pop" style="--i: 2">Nhìn thẳng vào ống kính nhé</div>
           <div class="divider" />
           <div class="mono muted">
             Đã chụp · {{ pad2(store.captures.length) }} / {{ pad2(captureTarget) }}
@@ -1273,8 +1942,19 @@ onBeforeUnmount(() => clearTimers());
             <span class="mono">{{ retakeCount }} lần × {{ money(retakePrice) }} =</span>
             <span class="display accent retake-sum">{{ money(retakeTotal) }}</span>
           </div>
-          <div class="row-actions e-cta" style="--i: 7">
-            <button class="btn btn-ghost btn-md" type="button" @click="openPhotoSelect('back')">
+          <div class="waiting e-pop" style="--i: 7">
+            <i class="waiting-dot" />
+            <div>
+              <div class="waiting-title">{{ autoConfirm ? "Đang chờ thanh toán" : "Đang chờ xác nhận" }}</div>
+              <div class="mono muted waiting-sub">
+                {{
+                  autoConfirm ? "Máy tự mở camera khi nhận được tiền" : "Máy tự mở camera khi nhân viên duyệt"
+                }}
+              </div>
+            </div>
+          </div>
+          <div class="row-actions e-cta" style="--i: 8">
+            <button class="btn btn-ghost btn-md" type="button" @click="leaveRetake">
               <Icon name="arrow-left" :size="20" />
               Huỷ
             </button>
@@ -1291,7 +1971,12 @@ onBeforeUnmount(() => clearTimers());
           <div class="qr-card chrome-ring e-card" style="--i: 2; --rot: 0deg">
             <span class="sheen" />
             <div class="qr-card-inner">
-              <img v-if="retakeQrUrl" class="qr-img" :src="retakeQrUrl" alt="Mã thanh toán chụp lại" />
+              <img v-if="paymentQrUrl" class="qr-img" :src="paymentQrUrl" alt="Mã chuyển khoản chụp lại" />
+              <div v-else class="qr-counter">
+                <Icon name="lock" :size="64" :stroke="1.6" />
+                <span class="display">Trả tại quầy</span>
+                <span class="mono muted">Đọc mã phiên cho nhân viên</span>
+              </div>
               <div class="qr-meta">
                 <span class="mono muted">Mã phiên</span>
                 <span class="display qr-code">{{ sessionCode }}-R</span>
@@ -1384,12 +2069,28 @@ onBeforeUnmount(() => clearTimers());
               <Icon name="arrow-left" :size="22" />
               Đổi ảnh
             </button>
-            <button class="btn btn-primary btn-md btn-arrowed" type="button" @click="openFinal()">
-              Xem kết quả
+            <button class="btn btn-primary btn-md btn-arrowed" type="button" @click="openDecorate">
+              Trang trí ảnh
               <span class="btn-arrow"><Icon name="arrow-right" :size="23" :stroke="2.6" /></span>
             </button>
           </div>
+          <button class="mono skip-link e-pop" style="--i: 9" type="button" @click="openFinal()">
+            Bỏ qua trang trí · xem kết quả
+          </button>
         </section>
+      </main>
+
+      <!-- ───────── 06b decorate ───────── -->
+      <main v-else-if="screen === 'decorate'" class="screen screen--flush">
+        <StickerEditor
+          ref="editor"
+          :preview-url="designPreviewUrl"
+          :width="store.selectedTemplate?.width || 1200"
+          :height="store.selectedTemplate?.height || 1800"
+          :default-text="decorateText"
+          @skip="skipDecorate"
+          @done="finishDecorate"
+        />
       </main>
 
       <!-- ───────── 07 result & print ───────── -->
@@ -1452,13 +2153,44 @@ onBeforeUnmount(() => clearTimers());
               <span v-else class="spinner" />
             </div>
             <div>
-              <div class="video-title">Video timelapse</div>
+              <div class="video-title">Timelapse + GIF boomerang</div>
               <div class="mono video-sub" :class="{ ready: timelapseUrl }">
                 {{ timelapseUrl ? "Đã sẵn sàng · gửi qua QR" : "Đang dựng video…" }}
               </div>
             </div>
           </div>
-          <div class="row-actions e-cta" style="--i: 5">
+          <div v-if="maxCopies > 1" class="copies e-pop" style="--i: 5">
+            <span class="mono muted">Số bản in</span>
+            <div class="stepper">
+              <button
+                class="display step-btn"
+                type="button"
+                aria-label="Bớt một bản"
+                :disabled="copies <= 1 || printing"
+                @click="changeCopies(-1)"
+              >
+                −
+              </button>
+              <span :key="copies" class="display step-value">{{ copies }}</span>
+              <button
+                class="display step-btn step-btn--plus"
+                type="button"
+                aria-label="Thêm một bản"
+                :disabled="copies >= maxCopies || printing"
+                @click="changeCopies(1)"
+              >
+                +
+              </button>
+            </div>
+            <span class="copies-note">
+              <template v-if="copies > 1"
+                >Bản thêm <span class="accent">+{{ money(extraCopyPrice * (copies - 1)) }}</span> · cần thanh
+                toán thêm</template
+              >
+              <template v-else>Gói đã gồm 1 bản in</template>
+            </span>
+          </div>
+          <div class="row-actions e-cta" style="--i: 6">
             <button
               class="btn btn-primary btn-print print-btn"
               type="button"
@@ -1467,7 +2199,7 @@ onBeforeUnmount(() => clearTimers());
             >
               <span v-if="printing" class="spinner spinner--light" />
               <Icon v-else name="printer" :size="30" />
-              {{ printing ? "Đang in…" : "In ảnh" }}
+              {{ printing ? "Đang in…" : copies > 1 ? `In ${copies} bản` : "In ảnh" }}
             </button>
             <button
               class="btn btn-ghost btn-md"
@@ -1482,6 +2214,81 @@ onBeforeUnmount(() => clearTimers());
             <span class="mono muted">Tự động in sau {{ autoPrintLeft }} giây</span>
             <span class="auto-bar"><i :style="{ transform: `scaleX(${autoPrintProgress})` }" /></span>
           </div>
+        </section>
+      </main>
+
+      <!-- ───────── E1 device error (printer) ───────── -->
+      <main v-else-if="screen === 'deviceError'" class="screen err">
+        <section class="err-copy">
+          <div class="error-badge e-pop" style="--i: 0"><Icon name="printer" :size="42" :stroke="2.4" /></div>
+          <div class="mono muted e-pop" style="--i: 1">Thông báo sự cố</div>
+          <h1 class="display err-title">
+            <span class="ln"><span class="e-line" style="--i: 2">Máy in đang</span></span>
+            <span class="ln"
+              ><span class="e-line err-accent" style="--i: 3">{{
+                printProblem?.label || "gặp sự cố"
+              }}</span></span
+            >
+          </h1>
+          <div class="err-text e-pop" style="--i: 4">
+            Đừng lo, ảnh của bạn đã được lưu an toàn.<br />Nhân viên sẽ đến hỗ trợ trong giây lát.
+          </div>
+          <div class="chip-row e-pop" style="--i: 5">
+            <span class="pill mono">Mã phiên {{ sessionCode }}</span>
+            <span v-if="printProblem?.code" class="pill mono">Lỗi {{ printProblem.code }}</span>
+            <span class="pill mono"
+              >{{ pad2(problemAt.getHours()) }}:{{ pad2(problemAt.getMinutes()) }} ·
+              {{ pad2(problemAt.getDate()) }}.{{ pad2(problemAt.getMonth() + 1) }}.{{
+                problemAt.getFullYear()
+              }}</span
+            >
+          </div>
+        </section>
+        <section class="err-options">
+          <div class="mono muted e-pop" style="--i: 2">Bạn muốn làm gì?</div>
+          <button
+            v-if="store.digitalDeliveryEnabled"
+            class="err-option err-option--primary e-rise"
+            style="--i: 3"
+            type="button"
+            @click="goToQr()"
+          >
+            <span class="err-option-icon"><Icon name="download" :size="26" /></span>
+            <span>
+              <span class="err-option-title">Nhận ảnh số trước</span>
+              <span class="err-option-sub">Quét QR tải ảnh, quay lại lấy bản in sau</span>
+            </span>
+          </button>
+          <button
+            class="err-option e-rise"
+            :class="{ busy: reprintWaiting }"
+            style="--i: 4"
+            type="button"
+            :disabled="reprintWaiting"
+            @click="waitForPrinter"
+          >
+            <span class="err-option-icon">
+              <span v-if="reprintWaiting" class="spinner" />
+              <Icon v-else name="refresh" :size="26" />
+            </span>
+            <span>
+              <span class="err-option-title">{{ reprintWaiting ? "Đang chờ máy in…" : "Chờ in lại" }}</span>
+              <span class="err-option-sub">Máy tự in ngay khi được nạp giấy</span>
+            </span>
+          </button>
+          <button class="err-option e-rise" style="--i: 5" type="button" @click="callStaffForPrinter">
+            <span class="err-option-icon"><Icon name="headset" :size="26" /></span>
+            <span>
+              <span class="err-option-title">{{
+                staffCalled ? "Báo nhân viên tại quầy nhé" : "Gọi nhân viên"
+              }}</span>
+              <span class="err-option-sub">{{
+                store.config?.support_hotline
+                  ? `Hotline ${store.config.support_hotline}`
+                  : "Nhân viên đang ở quầy gần đây"
+              }}</span>
+            </span>
+          </button>
         </section>
       </main>
 
@@ -1522,26 +2329,38 @@ onBeforeUnmount(() => clearTimers());
           </h1>
           <div v-if="store.digitalDeliveryEnabled" class="qr-list">
             <div
-              v-for="(item, index) in ['Ảnh gốc HD', 'Ảnh ghép', 'Video timelapse']"
+              v-for="(item, index) in ['Ảnh gốc HD', 'Ảnh ghép', 'Video timelapse', 'GIF boomerang']"
               :key="item"
               class="qr-list-row e-pop"
               :style="{ '--i': index + 3 }"
             >
               <span
                 class="mono qr-list-num"
-                :style="{ background: ['#C9B8FF', '#A8F0E0', '#FFD2B8'][index] }"
+                :style="{ background: ['#C9B8FF', '#A8F0E0', '#FFD2B8', '#C9B8FF'][index] }"
                 >{{ pad2(index + 1) }}</span
               >
               <span>{{ item }}</span>
             </div>
           </div>
-          <div v-if="store.digitalDeliveryEnabled" class="mono muted e-pop" style="--i: 6">
-            Link giữ trong {{ retentionDays }} ngày
+          <div v-if="store.digitalDeliveryEnabled" class="mono muted e-pop" style="--i: 7">
+            Ảnh tự xoá sau {{ retentionDays }} ngày · Có thể xoá ngay trên trang tải ảnh
           </div>
-          <div class="e-cta" style="--i: 7">
+          <label class="consent e-pop" style="--i: 8">
+            <input type="checkbox" :checked="shareConsent" @change="toggleShareConsent" />
+            Cho phép TSL đăng ảnh lên trang của tiệm (không bắt buộc)
+          </label>
+          <div class="row-actions e-cta" style="--i: 9">
             <button class="btn btn-primary btn-lg btn-arrowed" type="button" @click="openThanks">
               Xong
               <span class="btn-arrow"><Icon name="arrow-right" :size="25" :stroke="2.6" /></span>
+            </button>
+            <button
+              v-if="store.config?.loyalty_enabled"
+              class="btn btn-ghost btn-lg"
+              type="button"
+              @click="openLoyalty"
+            >
+              ✦ Tích điểm khách quen
             </button>
           </div>
         </section>
@@ -1648,7 +2467,43 @@ onBeforeUnmount(() => clearTimers());
             <span class="ln"><span class="e-line" style="--i: 3">Cảm ơn bạn!</span></span>
           </h1>
           <div class="thanks-sub e-pop" style="--i: 4">Hẹn gặp lại ở tấm ảnh tiếp theo.</div>
-          <div class="thanks-bar e-pop" style="--i: 5">
+          <div class="rating e-pop" style="--i: 5">
+            <div class="mono rating-label">
+              {{ rating ? "Cảm ơn bạn đã góp ý!" : "Bạn thấy trải nghiệm thế nào?" }}
+            </div>
+            <div class="rating-row">
+              <button
+                v-for="(label, index) in ['Chưa ổn', 'Ổn', 'Tuyệt vời']"
+                :key="label"
+                class="rate-btn"
+                :class="{ picked: rating === index + 1, faded: rating && rating !== index + 1 }"
+                type="button"
+                :disabled="Boolean(rating)"
+                @click="rate(index + 1)"
+              >
+                <span class="rate-face">
+                  <svg
+                    width="26"
+                    height="26"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M9 10h.01M15 10h.01" />
+                    <path v-if="index === 0" d="M8.5 16.5a5 5 0 0 1 7 0" />
+                    <path v-else-if="index === 1" d="M9 15.5h6" />
+                    <path v-else d="M8 14a5 5 0 0 0 8 0" />
+                  </svg>
+                </span>
+                {{ label }}
+              </button>
+            </div>
+          </div>
+          <div class="thanks-bar e-pop" style="--i: 6">
             <i :key="timerNonce" :style="{ animationDuration: `${timerSeconds}s` }" />
           </div>
         </section>
@@ -1663,6 +2518,132 @@ onBeforeUnmount(() => clearTimers());
     <div v-if="showTimeoutBar" :key="timerNonce" class="timeout-bar">
       <i :style="{ animationDuration: `${timerSeconds}s` }" />
     </div>
+
+    <VoucherDialog
+      :open="voucherOpen"
+      :slot-count="store.slotCount"
+      @close="voucherOpen = false"
+      @apply="applyVoucher"
+    />
+
+    <!-- 03d · QR expired -->
+    <NoticeDialog
+      :open="payNotice === 'expired'"
+      icon="clock"
+      title="Mã QR đã hết hạn"
+      :text="`Mỗi mã chỉ dùng được trong ${Math.round((store.config?.payment_qr_expiry_seconds ?? 300) / 60)} phút.\nNếu bạn đã chuyển khoản, vui lòng gọi nhân viên.`"
+    >
+      <template #actions>
+        <button class="btn btn-ghost btn-md" type="button" @click="callStaff">Gọi nhân viên</button>
+        <button class="btn btn-primary btn-md btn-arrowed" type="button" @click="renewQr">
+          Tạo mã mới
+          <span class="btn-arrow"><Icon name="refresh" :size="20" :stroke="2.6" /></span>
+        </button>
+      </template>
+    </NoticeDialog>
+
+    <!-- 03e · transfer short of the amount -->
+    <NoticeDialog
+      :open="payNotice === 'mismatch'"
+      icon="alert"
+      tone="amber"
+      title="Số tiền chưa đủ"
+      :width="90"
+    >
+      <div class="pay-lines">
+        <div>
+          <span>Cần thanh toán</span><span class="display">{{ money(payment?.amount ?? 0) }}</span>
+        </div>
+        <div>
+          <span>Đã nhận</span><span class="display">{{ money(payment?.received ?? 0) }}</span>
+        </div>
+        <div>
+          <span>Còn thiếu</span
+          ><span class="display accent pay-short">{{ money(payment?.remaining ?? 0) }}</span>
+        </div>
+      </div>
+      <div class="pay-hint">Quét mã bên cạnh để chuyển nốt phần còn thiếu.</div>
+      <template #actions>
+        <button class="btn btn-ghost btn-md" type="button" @click="callStaff">Gọi nhân viên</button>
+        <button class="btn btn-primary btn-md btn-arrowed" type="button" @click="refreshPayment">
+          Đã chuyển xong
+          <span class="btn-arrow"><Icon name="arrow-right" :size="20" :stroke="2.6" /></span>
+        </button>
+      </template>
+      <template #aside>
+        <img v-if="remainingQrUrl" class="notice-qr" :src="remainingQrUrl" alt="Mã chuyển phần còn thiếu" />
+        <span class="mono muted">Mã phiên {{ sessionCode }}</span>
+      </template>
+    </NoticeDialog>
+
+    <!-- 05c · are you still there? -->
+    <NoticeDialog
+      :open="stillThereOpen"
+      title="Bạn còn ở đó không?"
+      :text="`Chạm bất kỳ đâu để tiếp tục chọn ảnh.\nHết giờ, máy sẽ tự chọn ${store.slotCount} ảnh đầu và in cho bạn.`"
+    >
+      <template #badge>
+        <span class="chrome-sphere still-ring">
+          <svg class="still-arc" viewBox="0 0 100 100" aria-hidden="true">
+            <circle
+              cx="50"
+              cy="50"
+              r="46"
+              :style="{
+                strokeDashoffset:
+                  289 * (1 - stillThereLeft / (store.config?.photo_select_grace_seconds ?? 15)),
+              }"
+            />
+          </svg>
+          <span class="display still-num">{{ pad2(Math.max(0, stillThereLeft)) }}</span>
+        </span>
+      </template>
+      <template #actions>
+        <button class="btn btn-primary btn-lg btn-arrowed" type="button" @click="stillHere">
+          Tôi vẫn ở đây
+          <span class="btn-arrow"><Icon name="arrow-right" :size="23" :stroke="2.6" /></span>
+        </button>
+      </template>
+    </NoticeDialog>
+
+    <!-- 07b · paying for extra print copies -->
+    <NoticeDialog
+      :open="copiesPayOpen"
+      icon="printer"
+      :title="`In thêm ${copies - 1} bản`"
+      :width="paymentQrUrl ? 90 : 64"
+      :text="
+        paymentQrUrl
+          ? 'Quét mã để thanh toán, hoặc trả tại quầy.'
+          : 'Thanh toán tại quầy, nhân viên xác nhận bằng PIN.'
+      "
+    >
+      <div class="pay-lines">
+        <div>
+          <span>{{ copies - 1 }} bản × {{ money(extraCopyPrice) }}</span
+          ><span class="display accent pay-short">{{ money(payment?.remaining ?? 0) }}</span>
+        </div>
+      </div>
+      <template #actions>
+        <button class="btn btn-ghost btn-md" type="button" @click="cancelCopiesPayment">Chỉ in 1 bản</button>
+        <button class="btn btn-dark btn-md" type="button" @click="openPin('copies')">
+          <Icon name="lock" :size="22" />
+          Nhân viên xác nhận · PIN
+        </button>
+      </template>
+      <template v-if="paymentQrUrl" #aside>
+        <img class="notice-qr" :src="paymentQrUrl" alt="Mã chuyển khoản in thêm" />
+        <span class="mono muted">Mã phiên {{ sessionCode }}</span>
+      </template>
+    </NoticeDialog>
+
+    <LoyaltyDialog
+      :open="loyaltyOpen"
+      :session-id="store.sessionId"
+      :target="loyaltyTarget"
+      @close="closeLoyalty"
+      @done="openThanks"
+    />
 
     <PinDialog
       :open="pinOpen"

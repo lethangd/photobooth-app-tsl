@@ -132,3 +132,49 @@ def printer_status() -> dict:
         "kiosk_printer_found": target is not None,
         "printers": printers,
     }
+
+
+# ───────── printing from the kiosk ─────────
+
+# printer problem -> (code shown on the device-error screen, Vietnamese wording for "Máy in đang …")
+_PROBLEM_CODES: dict[str, tuple[str, str]] = {
+    "paper_jam": ("E-PRN-01", "kẹt giấy"),
+    "paper_out": ("E-PRN-02", "hết giấy"),
+    "paper_problem": ("E-PRN-02", "lỗi giấy"),
+    "no_toner": ("E-PRN-03", "hết mực"),
+    "offline": ("E-PRN-04", "mất kết nối"),
+    "not_available": ("E-PRN-04", "mất kết nối"),
+    "door_open": ("E-PRN-05", "mở nắp"),
+    "output_bin_full": ("E-PRN-06", "đầy khay ra"),
+}
+
+
+def kiosk_printer_problem() -> dict | None:
+    """None when the kiosk printer can print, else {ok: False, code, key, label} for the guest."""
+    status = printer_status()
+    target = status["kiosk_printer"]
+    if target is None:
+        return {"ok": False, "code": "E-PRN-04", "key": "not_found", "label": "mất kết nối"}
+    errors = [flag for flag in target["flags"] if flag["severity"] == "error"]
+    if not errors:
+        return None
+    flag = next((f for f in errors if f["key"] in _PROBLEM_CODES), errors[0])
+    code, label = _PROBLEM_CODES.get(flag["key"], ("E-PRN-09", flag["label"].lower()))
+    return {"ok": False, "code": code, "key": flag["key"], "label": label}
+
+
+def print_media(mediaitem, copies: int = 1) -> dict | None:
+    """Send ``copies`` prints through the first share/print action. Returns the problem when the printer cannot print."""
+    from ...container import container  # noqa: PLC0415  # avoid an import cycle at startup
+
+    problem = kiosk_printer_problem()
+    if problem:
+        logger.warning(f"not printing, printer problem {problem}")
+        return problem
+    try:
+        for _ in range(copies):
+            container.share_service.share(mediaitem, 0)
+    except Exception as exc:
+        logger.error(f"print failed: {exc}")
+        return kiosk_printer_problem() or {"ok": False, "code": "E-PRN-09", "key": "error", "label": "gặp sự cố"}
+    return None

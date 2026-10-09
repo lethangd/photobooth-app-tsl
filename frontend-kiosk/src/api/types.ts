@@ -48,6 +48,19 @@ export interface KioskConfig {
   reduce_motion: boolean;
   sound_enabled: boolean;
   browser_camera_fallback?: boolean;
+  pose_seconds_options?: number[];
+  payment_qr_expiry_seconds?: number;
+  /** a bank account is configured: show a VietQR code */
+  bank_qr?: boolean;
+  /** transfers are confirmed automatically (SePay) */
+  auto_confirm?: boolean;
+  extra_copy_price?: number;
+  max_print_copies?: number;
+  print_enabled?: boolean;
+  loyalty_enabled?: boolean;
+  loyalty_stamps_for_reward?: number;
+  support_hotline?: string;
+  has_vouchers?: boolean;
   filters: FilterOption[];
   frame_types: FrameTypeConfig[];
 }
@@ -71,6 +84,16 @@ export interface RenderResult {
   cloud_url: string | null;
   retention_days: number;
   timelapse_status: string;
+  print?: PrintStatus;
+}
+
+/** Result of sending a print; `ok: false` carries what the device-error screen shows. */
+export interface PrintStatus {
+  ok: boolean;
+  simulated?: boolean;
+  code?: string;
+  key?: string;
+  label?: string;
 }
 
 export interface RenderPayload {
@@ -81,6 +104,10 @@ export interface RenderPayload {
   session_id: string | null;
   digital_delivery: boolean;
   timelapse_id: string | null;
+  copies?: number;
+  share_consent?: boolean;
+  /** transparent PNG data URL with the guest's stickers / text / drawing */
+  overlay_png?: string | null;
 }
 
 export interface TimelapsePayload {
@@ -92,9 +119,52 @@ export interface TimelapsePayload {
 /** What the staff confirms with the PIN; the server derives the amount from its own prices. */
 export interface PinContext {
   session_id: string;
-  purpose: "package" | "retake";
+  purpose: PaymentPurpose;
   slot_count?: number;
   retake_shots?: number;
+  /** the payment request being confirmed */
+  reference?: string;
+}
+
+export type PaymentPurpose = "package" | "retake" | "copies";
+
+/** A payment request: what to pay, the VietQR text and how much already arrived by transfer. */
+export interface Payment {
+  reference: string;
+  session_id: string;
+  purpose: PaymentPurpose;
+  quantity: number;
+  list_amount: number;
+  discount: number;
+  voucher_code: string | null;
+  amount: number;
+  received: number;
+  remaining: number;
+  status: "pending" | "partial" | "paid" | "cancelled";
+  method: string | null;
+  expires_in: number;
+  expired: boolean;
+  qr_payload: string | null;
+  bank_account_name: string;
+  auto_confirm: boolean;
+}
+
+export interface VoucherCheck {
+  ok: boolean;
+  message?: string;
+  code?: string;
+  discount?: number;
+  total?: number;
+  label?: string;
+}
+
+export interface LoyaltyResult {
+  stamps: number;
+  sessions: number;
+  target: number;
+  new_stamp: boolean;
+  reward_code: string | null;
+  reward_valid_until: string | null;
 }
 
 export interface PinResult {

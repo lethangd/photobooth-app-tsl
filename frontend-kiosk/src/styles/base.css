@@ -1140,36 +1140,87 @@ h1 {
   width: 68rem;
 }
 
-.idle-capsule {
-  border-radius: 21.5rem;
-  height: 72rem;
+/* 01 · arch frame the couple steps out of (design coordinates, art area starts at x = 920px) */
+.idle-glow {
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(201, 184, 255, 0.75) 22%,
+    rgba(168, 240, 224, 0.5) 40%,
+    rgba(255, 210, 184, 0.28) 56%,
+    rgba(233, 236, 242, 0) 70%
+  );
+  border-radius: 50%;
+  height: 104rem;
+  left: -18.5rem;
+  pointer-events: none;
   position: absolute;
-  right: 4rem;
-  top: 3rem;
-  width: 43rem;
+  top: 0;
+  width: 104rem;
 }
 
-.idle-capsule-inner {
-  border-radius: 20.5rem;
+.idle-arch-wrap {
+  height: 47rem;
+  left: 9rem;
+  position: absolute;
+  top: 31.6rem;
+  width: 49rem;
+  z-index: 3;
+}
+
+.idle-arch {
+  background: var(--chrome);
+  border-radius: 24.5rem 24.5rem 4rem 4rem;
+  box-shadow: var(--shadow);
+  height: 100%;
+  padding: 1rem;
+}
+
+.idle-arch-inner {
+  border-radius: 23.5rem 23.5rem 3rem 3rem;
   height: 100%;
   overflow: hidden;
   position: relative;
 }
 
-.idle-capsule-inner img {
-  height: 100%;
-  inset: 0;
-  object-fit: cover;
+/* photo and cut-out share size and offset so they line up to the pixel */
+.idle-arch-photo,
+.idle-arch-cutout {
+  display: block;
+  height: auto;
   position: absolute;
-  width: 100%;
+  width: 47rem;
+}
+
+.idle-arch-photo {
+  left: 0;
+  top: -20rem;
+}
+
+.idle-arch-cutout {
+  left: 1rem;
+  pointer-events: none;
+  top: -19rem;
+}
+
+.idle-arch-glow {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 150, 90, 0.62), transparent 46%),
+    radial-gradient(circle at 0% 100%, rgba(255, 90, 150, 0.36), transparent 38%);
+  border-radius: inherit;
+  inset: 0;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  position: absolute;
 }
 
 .idle-strip {
   box-shadow: var(--shadow);
-  left: 3rem;
+  left: -0.3rem;
   position: absolute;
-  top: 4rem;
-  width: 17rem;
+  top: 3.6rem;
+  width: 16rem;
+  z-index: 2;
 }
 
 .idle-strip img {
@@ -1179,11 +1230,12 @@ h1 {
 
 .idle-circle {
   border-radius: 50%;
-  height: 25rem;
-  left: 7rem;
+  height: 22rem;
+  left: -6rem;
   position: absolute;
-  top: 47rem;
-  width: 25rem;
+  top: 54rem;
+  width: 22rem;
+  z-index: 5;
 }
 
 .idle-circle img {
@@ -1195,19 +1247,20 @@ h1 {
 }
 
 .idle-badge {
+  left: 52rem;
   position: absolute;
-  right: 0;
-  top: 0;
+  top: 21rem;
+  z-index: 6;
 }
 
 .sphere-badge {
   align-items: center;
   display: flex;
   flex-direction: column;
-  height: 14rem;
+  height: 13.6rem;
   justify-content: center;
   text-align: center;
-  width: 14rem;
+  width: 13.6rem;
 }
 
 .sphere-badge .mono {
@@ -2343,29 +2396,30 @@ h1 {
     width: 100%;
   }
 
-  .idle-capsule {
-    height: 62rem;
-    right: 14rem;
-    top: 4rem;
-    width: 37rem;
+  .idle-glow {
+    left: -7rem;
+    top: -6rem;
+  }
+
+  .idle-arch-wrap {
+    left: 20.5rem;
+    top: 24rem;
   }
 
   .idle-strip {
-    left: 6rem;
-    top: 8rem;
+    left: 5rem;
+    top: 6rem;
     width: 15rem;
   }
 
   .idle-circle {
-    height: 22rem;
-    left: 8rem;
-    top: 44rem;
-    width: 22rem;
+    left: 6rem;
+    top: 46rem;
   }
 
   .idle-badge {
-    right: 5rem;
-    top: 3rem;
+    left: 70rem;
+    top: 10rem;
   }
 
   /* package */

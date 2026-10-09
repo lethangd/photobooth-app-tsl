@@ -49,6 +49,24 @@ class FramebootFilterDefinition(BaseModel):
     )
 
 
+class FramebootVoucher(BaseModel):
+    """A discount code for the payment screen."""
+
+    model_config = ConfigDict(title="Voucher")
+
+    code: str = Field(
+        default="TSL-HELLO",
+        pattern=r"^[A-Z0-9-]{3,20}$",
+        description="Code the guest types, upper case letters, digits and '-'.",
+    )
+    discount_amount: int = Field(default=10_000, ge=0, description="Fixed discount in VND.")
+    discount_percent: int = Field(default=0, ge=0, le=100, description="Percent discount (applied when > 0, instead of the fixed amount).")
+    max_uses: int = Field(default=0, ge=0, description="How often the code can be used in total (0: unlimited).")
+    valid_until: str = Field(default="", pattern=r"^(\d{4}-\d{2}-\d{2})?$", description="Last day the code works (YYYY-MM-DD), empty: no end.")
+    enabled: bool = True
+
+
+
 class GroupFramebooth(BaseModel):
     """Configure the self-service kiosk (Framebooth) flow: pricing, timings, filters."""
 
@@ -179,7 +197,7 @@ class GroupFramebooth(BaseModel):
     cloud_delivery_enabled: bool = Field(
         default=True,
         description="Upload the digital files to Cloudflare R2 and link the QR code to the public page. "
-        "Needs R2_ENDPOINT, R2_BUCKET, R2_PUBLIC_URL, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY in the environment or a .env.r2 file; "
+        "Needs R2_ENDPOINT, R2_BUCKET, R2_PUBLIC_URL, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY in the environment or the .env file; "
         "without them the kiosk falls back to the local gallery link.",
     )
 
@@ -209,11 +227,95 @@ class GroupFramebooth(BaseModel):
 
     support_hotline: str = Field(
         default="",
-        description="Support phone number to show the guest when a hard error occurs (reserved, not surfaced in the UI yet).",
+        description="Support phone number shown to the guest on the device-error screen (printer out of paper, …).",
     )
     printer_retry_count: int = Field(
         default=1,
         ge=0,
         le=5,
-        description="Number of automatic retries on a print failure once a real printer is wired up (reserved, printing is currently mocked).",
+        description="Number of automatic retries on a print failure.",
     )
+
+    # ───── capture ─────
+    pose_seconds_options: list[int] = Field(
+        default=[5, 10, 20],
+        min_length=1,
+        max_length=4,
+        description="Posing times (seconds per shot) the guest can pick on the 'get ready' screen. "
+        "The one closest to capture_countdown_seconds is preselected.",
+    )
+
+    # ───── payment ─────
+    bank_bin: str = Field(
+        default="",
+        pattern=r"^([0-9]{6})?$",
+        description="6-digit NAPAS BIN of the bank receiving transfers (e.g. 970436 Vietcombank, 970422 MB, 970407 Techcombank, "
+        "970415 VietinBank, 970418 BIDV, 970423 TPBank, 970416 ACB). Empty: the kiosk shows no bank QR, payment by staff PIN only.",
+    )
+    bank_account_number: str = Field(
+        default="",
+        pattern=r"^[0-9A-Za-z]{0,19}$",
+        description="Account number receiving the transfers (VietQR).",
+    )
+    bank_account_name: str = Field(
+        default="",
+        description="Account holder name shown under the QR, upper case without accents (e.g. NGUYEN VAN A).",
+    )
+    payment_qr_expiry_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=1800,
+        description="Lifetime of a payment QR. After it the kiosk offers to create a new one.",
+    )
+    vouchers: list[FramebootVoucher] = Field(
+        default=[],
+        description="Discount codes guests can type on the payment screen. Loyalty rewards are issued automatically on top of these.",
+    )
+
+    # ───── result & print ─────
+    print_enabled: bool = Field(
+        default=False,
+        description="Send the collage to the printer of the first share/print action. "
+        "Off: the kiosk only shows the print animation (testing without printer).",
+    )
+    extra_copy_price: int = Field(
+        default=15_000,
+        ge=0,
+        description="Price in VND of each extra print copy beyond the first one.",
+    )
+    max_print_copies: int = Field(
+        default=4,
+        ge=1,
+        le=10,
+        description="Maximum number of copies a guest can print in one session. 1 hides the copies picker.",
+    )
+
+    social_handle: str = Field(
+        default="",
+        max_length=40,
+        description="Shop page shown on the story images of the download page, e.g. @tslphotobooth (empty: hidden).",
+    )
+    social_hashtag: str = Field(
+        default="#TSLbooth",
+        max_length=40,
+        description="Hashtag added to the suggested captions of the download page.",
+    )
+
+    # ───── after the print ─────
+    loyalty_enabled: bool = Field(
+        default=True,
+        description="Offer guests to collect a stamp per session with their phone number.",
+    )
+    loyalty_stamps_for_reward: int = Field(
+        default=5,
+        ge=2,
+        le=20,
+        description="Number of sessions after which the guest receives a free-session code.",
+    )
+    loyalty_reward_valid_days: int = Field(
+        default=90,
+        ge=7,
+        le=365,
+        description="Days the free-session code stays valid.",
+    )
+

@@ -114,6 +114,12 @@ class AcquisitionService(BaseService):
                     return False
         return False
 
+    def stills_camera_is_virtual(self) -> bool:
+        """The demo "VirtualCamera" (a looping sample video) is no real camera: the kiosk prefers the laptop webcam then."""
+        from .backends.virtualcamera import VirtualCameraBackend  # noqa: PLC0415
+
+        return isinstance(getattr(self, "_stills_backend", None), VirtualCameraBackend)
+
     def wait_for_lores_image(self, index_device: int | None = None, index_subdevice: int = 0):
 
         if not self.is_running():

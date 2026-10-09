@@ -1,25 +1,32 @@
 """Cloudflare R2 delivery of the digital files (originals, collage, timelapse) of a kiosk session.
 
-Credentials are read from environment variables, optionally preloaded from a ``.env.r2`` file in the
-working directory (git-ignored) so secrets never end up in ``config.json``::
+Credentials are read from environment variables, optionally preloaded from ``.env`` (see ``.env.example``)
+or the older ``.env.r2`` file in the working directory (both git-ignored) so secrets never end up in
+``config.json``::
 
     R2_ENDPOINT, R2_BUCKET, R2_PUBLIC_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
 
-Each session is uploaded below an unguessable prefix ``sessions/<token>/`` together with a small
-``index.html`` page that the QR code links to. A background sweeper deletes sessions older than
+Each session is uploaded below an unguessable prefix ``sessions/<token>/`` together with
+``index.html`` (``delivery_page.html`` filled with the session) that the QR code links to: photos, a GIF
+boomerang, the timelapse, a ZIP of everything, story / post images and a 15 s clip made in the guest's
+browser, and a "delete my photos" button using presigned delete links. A background sweeper deletes sessions older than
 ``appconfig.framebooth.digital_delivery_retention_days``.
 """
 
+import json
 import logging
 import mimetypes
 import os
 import secrets
+import tempfile
 import time
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from html import escape
 from pathlib import Path
+
+from PIL import Image, ImageOps
 
 from ...appconfig import appconfig
 from ...utils.repeatedtimer import RepeatedTimer
@@ -27,10 +34,13 @@ from ..base import BaseService
 
 logger = logging.getLogger(__name__)
 
-ENV_FILE = Path(".env.r2")
+ENV_FILES = (Path(".env"), Path(".env.r2"))
 SESSIONS_PREFIX = "sessions/"
 SWEEP_INTERVAL_SECONDS = 60 * 60
 UPLOAD_WORKERS = 4
+PAGE_TEMPLATE = Path(__file__).with_name("delivery_page.html")
+# SigV4 presigned URLs live at most 7 days
+_MAX_PRESIGN_SECONDS = 7 * 24 * 3600
 
 
 @dataclass(frozen=True)
@@ -44,10 +54,12 @@ class R2Settings:
     @classmethod
     def load(cls) -> "R2Settings | None":
         env = dict(os.environ)
-        if ENV_FILE.is_file():
-            for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+        for env_file in ENV_FILES:
+            if not env_file.is_file():
+                continue
+            for line in env_file.read_text(encoding="utf-8").splitlines():
                 key, sep, value = line.strip().partition("=")
-                if sep and not key.startswith("#"):
+                if sep and not key.startswith("#") and value.strip():
                     env.setdefault(key.strip(), value.strip())
 
         try:
@@ -101,7 +113,9 @@ class CloudDeliveryService(BaseService):
 
         self._sweep_timer.start()
         # initial sweep off the main thread so a slow network never delays boot
-        ThreadPoolExecutor(max_workers=1).submit(self.sweep_expired)
+        startup = ThreadPoolExecutor(max_workers=1)
+        startup.submit(self.sweep_expired)
+        startup.submit(self._ensure_cors)
 
         super().started()
         logger.info(f"cloud delivery ready, bucket {self._settings.bucket}")
@@ -117,78 +131,101 @@ class CloudDeliveryService(BaseService):
         collage: Path,
         originals: list[Path],
         timelapse: Path | None = None,
+        boomerang_sources: list[Path] | None = None,
+        session_id: str | None = None,
     ) -> str:
         """Upload one session and return the public URL of its landing page. Raises on failure."""
         assert self._client and self._settings, "cloud delivery not available"
 
         token = secrets.token_urlsafe(16)
         prefix = f"{SESSIONS_PREFIX}{token}/"
-        retention_days = appconfig.framebooth.digital_delivery_retention_days
+        config = appconfig.framebooth
+        retention_days = config.digital_delivery_retention_days
 
         files: list[tuple[Path, str]] = [(collage, f"collage{collage.suffix}")]
         files += [(path, f"original_{index}{path.suffix}") for index, path in enumerate(originals, start=1)]
         if timelapse:
             files.append((timelapse, f"timelapse{timelapse.suffix}"))
 
-        with ThreadPoolExecutor(max_workers=UPLOAD_WORKERS) as pool:
-            list(pool.map(lambda item: self._put_file(prefix + item[1], item[0]), files))
+        with tempfile.TemporaryDirectory() as tmp:
+            boomerang = make_boomerang(boomerang_sources or originals, Path(tmp, "boomerang.gif"))
+            if boomerang:
+                files.append((boomerang, "boomerang.gif"))
+            archive = Path(tmp, "anh-tsl-photobooth.zip")
+            with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as bundle:  # jpg/webm/gif are compressed already
+                for path, name in files:
+                    bundle.write(path, name)
+            files.append((archive, archive.name))
 
-        index_html = self._render_index(
-            collage=files[0][1],
-            originals=[name for _, name in files[1 : 1 + len(originals)]],
-            timelapse=files[-1][1] if timelapse else None,
-            expires=datetime.now(UTC) + timedelta(days=retention_days),
-        )
+            with ThreadPoolExecutor(max_workers=UPLOAD_WORKERS) as pool:
+                list(pool.map(lambda item: self._put_file(prefix + item[1], item[0]), files))
+
+        names = [name for _, name in files]
+        keys = [prefix + name for name in names] + [prefix + "index.html"]
+        expires = datetime.now(UTC) + timedelta(days=retention_days)
+        data = {
+            "session": session_id or "",
+            "created": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "expires": expires.isoformat(timespec="seconds"),
+            "retention_days": retention_days,
+            "collage": names[0],
+            "originals": names[1 : 1 + len(originals)],
+            "timelapse": f"timelapse{timelapse.suffix}" if timelapse else None,
+            "boomerang": "boomerang.gif" if "boomerang.gif" in names else None,
+            "zip": "anh-tsl-photobooth.zip",
+            "handle": config.social_handle,
+            "hashtag": config.social_hashtag,
+            "delete_urls": self._presigned_deletes(keys, retention_days),
+        }
         self._client.put_object(
             Bucket=self._settings.bucket,
             Key=prefix + "index.html",
-            Body=index_html.encode("utf-8"),
+            Body=render_delivery_page(data).encode("utf-8"),
             ContentType="text/html; charset=utf-8",
+            CacheControl="no-store",
         )
 
         url = f"{self._settings.public_url}/{prefix}index.html"
         logger.info(f"uploaded session with {len(files)} file(s) to {prefix}")
         return url
 
+    def _presigned_deletes(self, keys: list[str], retention_days: int) -> list[str]:
+        """Links that let the guest delete their own files from the page (the page link is the secret)."""
+        assert self._client and self._settings
+        seconds = min(retention_days * 24 * 3600, _MAX_PRESIGN_SECONDS)
+        try:
+            return [
+                self._client.generate_presigned_url("delete_object", Params={"Bucket": self._settings.bucket, "Key": key}, ExpiresIn=seconds)
+                for key in keys
+            ]
+        except Exception as exc:
+            logger.warning(f"could not presign delete links: {exc}")
+            return []
+
+    def _ensure_cors(self) -> None:
+        """The delete button of the page sends DELETE requests from the public bucket domain to the S3 endpoint."""
+        assert self._client and self._settings
+        try:
+            self._client.put_bucket_cors(
+                Bucket=self._settings.bucket,
+                CORSConfiguration={
+                    "CORSRules": [
+                        {
+                            "AllowedOrigins": [self._settings.public_url],
+                            "AllowedMethods": ["GET", "DELETE"],
+                            "AllowedHeaders": ["*"],
+                            "MaxAgeSeconds": 3600,
+                        }
+                    ]
+                },
+            )
+        except Exception as exc:
+            logger.warning(f"could not set bucket CORS (the 'delete my photos' button may not work): {exc}")
+
     def _put_file(self, key: str, path: Path) -> None:
         assert self._client and self._settings
         content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         self._client.upload_file(str(path), self._settings.bucket, key, ExtraArgs={"ContentType": content_type})
-
-    @staticmethod
-    def _render_index(collage: str, originals: list[str], timelapse: str | None, expires: datetime) -> str:
-        expires_text = expires.astimezone().strftime("%d/%m/%Y")
-        video = (
-            f'<h2>Video timelapse</h2><video src="{escape(timelapse)}" controls playsinline muted loop></video>'
-            f'<a class="btn" href="{escape(timelapse)}" download>Tải video</a>'
-            if timelapse
-            else ""
-        )
-        originals_html = "".join(
-            f'<a class="thumb" href="{escape(name)}" download><img src="{escape(name)}" loading="lazy" alt="Ảnh gốc {index}"></a>'
-            for index, name in enumerate(originals, start=1)
-        )
-        originals_block = f'<h2>Ảnh gốc</h2><div class="grid">{originals_html}</div>' if originals else ""
-
-        return f"""<!doctype html>
-<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Ảnh của bạn - TSL Photobooth</title>
-<style>
-body{{margin:0;font-family:system-ui,sans-serif;background:#f6f1f3;color:#1c1b1f;padding:16px;max-width:560px;margin-inline:auto}}
-h1{{font-size:1.4rem}}h2{{font-size:1.05rem;margin:24px 0 8px}}
-img,video{{width:100%;border-radius:12px;display:block;background:#ddd}}
-.btn{{display:block;text-align:center;margin:12px 0;padding:14px;border-radius:12px;
-background:#1c1b1f;color:#fff;text-decoration:none;font-weight:600}}
-.grid{{display:grid;grid-template-columns:1fr 1fr;gap:8px}}.thumb img{{aspect-ratio:3/2;object-fit:cover}}
-small{{color:#666}}
-</style></head><body>
-<h1>Ảnh của bạn đã sẵn sàng</h1>
-<img src="{escape(collage)}" alt="Ảnh ghép">
-<a class="btn" href="{escape(collage)}" download>Tải ảnh ghép</a>
-{video}
-{originals_block}
-<p><small>Liên kết có hiệu lực đến hết ngày {expires_text}. Hãy tải về trước khi hết hạn.</small></p>
-</body></html>"""
 
     def usage(self, max_age_seconds: float = 60.0) -> dict:
         """Objects and bytes stored below ``sessions/`` (cached for a minute, listing is billed per call)."""
@@ -237,3 +274,30 @@ small{{color:#666}}
         if expired:
             logger.info(f"cloud retention sweep deleted {len(expired)} object(s) older than {cutoff:%Y-%m-%d}")
         return len(expired)
+
+
+def make_boomerang(sources: list[Path], output: Path, width: int = 480) -> Path | None:
+    """Short looping GIF going forth and back through the photos."""
+    frames = []
+    for path in sources[:6]:
+        try:
+            with Image.open(path) as image:
+                frame = ImageOps.exif_transpose(image).convert("RGB")
+                frame.thumbnail((width, width * 2))
+                frames.append(frame)
+        except Exception as exc:
+            logger.warning(f"skipping {path} in boomerang: {exc}")
+    if len(frames) < 2:
+        return None
+    size = frames[0].size
+    frames = [frame if frame.size == size else ImageOps.fit(frame, size) for frame in frames]
+    sequence = frames + frames[-2:0:-1]
+    paletted = [frame.convert("P", palette=Image.Palette.ADAPTIVE, colors=200) for frame in sequence]
+    paletted[0].save(output, save_all=True, append_images=paletted[1:], duration=180, loop=0, optimize=True)
+    return output
+
+
+def render_delivery_page(data: dict) -> str:
+    # "</" must not end the inline <script> early
+    payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    return PAGE_TEMPLATE.read_text(encoding="utf-8").replace("__SESSION_DATA__", payload)

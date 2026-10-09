@@ -53,3 +53,18 @@ def render_preview_response(image: Image.Image) -> StreamingResponse:
     image.save(output, format="JPEG", quality=88)
     output.seek(0)
     return StreamingResponse(output, media_type="image/jpeg")
+
+
+def apply_overlay(image: Image.Image, overlay_png: str) -> Image.Image:
+    """Lay the guest's decoration (stickers, text, doodles; a transparent PNG as data URL or base64) over the collage."""
+    import base64  # noqa: PLC0415
+
+    data = overlay_png.split(",", 1)[1] if overlay_png.startswith("data:") else overlay_png
+    try:
+        with Image.open(BytesIO(base64.b64decode(data))) as decoded:
+            overlay = decoded.convert("RGBA").resize(image.size, Image.Resampling.LANCZOS)
+    except Exception:
+        return image  # a broken decoration must never stop the print
+    base = image.convert("RGBA")
+    base.alpha_composite(overlay)
+    return base.convert("RGB")

@@ -3,12 +3,17 @@ import * as demo from "./demo";
 import type {
   CaptureResult,
   KioskConfig,
+  LoyaltyResult,
+  Payment,
+  PaymentPurpose,
   PinContext,
   PinResult,
+  PrintStatus,
   RenderPayload,
   RenderResult,
   TimelapsePayload,
   TimelapseResult,
+  VoucherCheck,
 } from "./types";
 
 const BASE = "/api/framebooth";
@@ -29,13 +34,20 @@ export function capture(): Promise<CaptureResult> {
   return postJson<CaptureResult>(`${BASE}/capture`);
 }
 
-/** Whether the server camera can take photos right now (false: webcam busy, crashed or not configured). */
-export async function serverCameraAvailable(): Promise<boolean> {
-  if (DEMO) return false;
+export interface CameraStatus {
+  /** the server camera delivers frames right now (false: webcam busy, crashed or not configured) */
+  available: boolean;
+  /** only the demo "VirtualCamera" is configured, no real camera is connected */
+  virtual: boolean;
+}
+
+export async function serverCameraStatus(): Promise<CameraStatus> {
+  if (DEMO) return { available: false, virtual: false };
   try {
-    return (await getJson<{ available: boolean }>(`${BASE}/camera-status`)).available;
+    const status = await getJson<Partial<CameraStatus>>(`${BASE}/camera-status`);
+    return { available: Boolean(status.available), virtual: Boolean(status.virtual) };
   } catch {
-    return false;
+    return { available: false, virtual: false };
   }
 }
 
@@ -68,6 +80,68 @@ export function renderCollage(payload: RenderPayload): Promise<RenderResult> {
 }
 
 export function verifyPin(pin: string, context?: PinContext): Promise<PinResult> {
-  if (DEMO) return demo.verifyPin(pin);
+  if (DEMO) return demo.verifyPin(pin, context?.reference);
   return postJson<PinResult>(`${BASE}/verify-pin`, { pin, ...context });
+}
+
+// ───── payments ─────
+
+export function createPayment(
+  sessionId: string,
+  purpose: PaymentPurpose,
+  quantity: number,
+  voucherCode?: string | null,
+): Promise<Payment> {
+  if (DEMO) return demo.createPayment(sessionId, purpose, quantity, voucherCode);
+  return postJson<Payment>(`${BASE}/payments`, {
+    session_id: sessionId,
+    purpose,
+    quantity,
+    voucher_code: voucherCode || null,
+  });
+}
+
+export function getPayment(reference: string): Promise<Payment> {
+  if (DEMO) return demo.getPayment(reference);
+  return getJson<Payment>(`${BASE}/payments/${encodeURIComponent(reference)}`);
+}
+
+export function renewPayment(reference: string): Promise<Payment> {
+  if (DEMO) return demo.getPayment(reference, true);
+  return postJson<Payment>(`${BASE}/payments/${encodeURIComponent(reference)}/renew`);
+}
+
+export function cancelPayment(reference: string): Promise<unknown> {
+  if (DEMO) return Promise.resolve({ ok: true });
+  return postJson(`${BASE}/payments/${encodeURIComponent(reference)}/cancel`);
+}
+
+export function checkVoucher(code: string, slotCount: number): Promise<VoucherCheck> {
+  if (DEMO) return demo.checkVoucher(code, slotCount);
+  return postJson<VoucherCheck>(`${BASE}/vouchers/check`, { code, slot_count: slotCount });
+}
+
+// ───── after the print ─────
+
+export function addLoyaltyStamp(sessionId: string, phone: string): Promise<LoyaltyResult> {
+  if (DEMO) return demo.addLoyaltyStamp(phone);
+  return postJson<LoyaltyResult>(`${BASE}/loyalty`, { session_id: sessionId, phone });
+}
+
+export function sendFeedback(
+  sessionId: string,
+  feedback: { rating?: number; share_consent?: boolean },
+): Promise<unknown> {
+  if (DEMO) return Promise.resolve({ ok: true });
+  return postJson(`${BASE}/feedback`, { session_id: sessionId, ...feedback });
+}
+
+export function printerStatus(): Promise<PrintStatus> {
+  if (DEMO) return Promise.resolve({ ok: true });
+  return getJson<PrintStatus>(`${BASE}/printer-status`);
+}
+
+export function printAgain(mediaId: string, copies: number, sessionId: string): Promise<PrintStatus> {
+  if (DEMO) return Promise.resolve({ ok: true, simulated: true });
+  return postJson<PrintStatus>(`${BASE}/print`, { media_id: mediaId, copies, session_id: sessionId });
 }

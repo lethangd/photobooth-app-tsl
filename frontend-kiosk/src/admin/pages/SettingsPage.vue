@@ -19,14 +19,56 @@ interface Form {
   reduce_motion: boolean;
   browser_camera_fallback: boolean;
   digital_delivery_retention_days: number;
+  bank_bin: string;
+  bank_account_number: string;
+  bank_account_name: string;
+  payment_qr_expiry_seconds: number;
+  vouchers: Voucher[];
+  print_enabled: boolean;
+  extra_copy_price: number;
+  max_print_copies: number;
+  loyalty_enabled: boolean;
+  loyalty_stamps_for_reward: number;
+  support_hotline: string;
+  social_handle: string;
 }
 
-/* Admin password and staff PIN are kept hashed in .env on the kiosk, never in config.json. */
+interface Voucher {
+  code: string;
+  discount_amount: number;
+  discount_percent: number;
+  max_uses: number;
+  valid_until: string;
+  enabled: boolean;
+}
+
+/* Admin password and staff PIN are kept in .env on the kiosk, never in config.json. */
 interface Security {
   admin_password_default: boolean;
   staff_pin_default: boolean;
   secrets_file: string;
+  sepay: "token" | "webhook" | null;
 }
+
+/* NAPAS BINs of the banks most shops use (VietQR). */
+const BANKS = [
+  { bin: "970436", name: "Vietcombank" },
+  { bin: "970422", name: "MB Bank" },
+  { bin: "970407", name: "Techcombank" },
+  { bin: "970415", name: "VietinBank" },
+  { bin: "970418", name: "BIDV" },
+  { bin: "970405", name: "Agribank" },
+  { bin: "970416", name: "ACB" },
+  { bin: "970423", name: "TPBank" },
+  { bin: "970432", name: "VPBank" },
+  { bin: "970403", name: "Sacombank" },
+  { bin: "970448", name: "OCB" },
+  { bin: "970454", name: "Viet Capital Bank" },
+  { bin: "963388", name: "Timo" },
+  { bin: "970441", name: "VIB" },
+  { bin: "970443", name: "SHB" },
+  { bin: "970437", name: "HDBank" },
+];
 
 type AppConfig = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -44,6 +86,18 @@ const LABELS: Record<string, string> = {
   reduce_motion: "giảm hiệu ứng",
   browser_camera_fallback: "webcam dự phòng",
   digital_delivery_retention_days: "số ngày giữ ảnh",
+  bank_bin: "ngân hàng",
+  bank_account_number: "số tài khoản",
+  bank_account_name: "tên chủ tài khoản",
+  payment_qr_expiry_seconds: "hạn mã QR",
+  vouchers: "mã giảm giá",
+  print_enabled: "máy in",
+  extra_copy_price: "giá bản in thêm",
+  max_print_copies: "số bản in tối đa",
+  loyalty_enabled: "tích điểm",
+  loyalty_stamps_for_reward: "số lần để được tặng",
+  support_hotline: "hotline",
+  social_handle: "trang mạng xã hội",
 };
 
 const TIMINGS = [
@@ -119,6 +173,18 @@ const form = reactive<Form>({
   reduce_motion: false,
   browser_camera_fallback: true,
   digital_delivery_retention_days: 7,
+  bank_bin: "",
+  bank_account_number: "",
+  bank_account_name: "",
+  payment_qr_expiry_seconds: 300,
+  vouchers: [],
+  print_enabled: false,
+  extra_copy_price: 15000,
+  max_print_copies: 4,
+  loyalty_enabled: true,
+  loyalty_stamps_for_reward: 5,
+  support_hotline: "",
+  social_handle: "",
 });
 const saving = ref(false);
 
@@ -157,6 +223,18 @@ function fromConfig(cfg: AppConfig): Form {
     reduce_motion: fb.reduce_motion,
     browser_camera_fallback: fb.browser_camera_fallback,
     digital_delivery_retention_days: fb.digital_delivery_retention_days,
+    bank_bin: fb.bank_bin ?? "",
+    bank_account_number: fb.bank_account_number ?? "",
+    bank_account_name: fb.bank_account_name ?? "",
+    payment_qr_expiry_seconds: fb.payment_qr_expiry_seconds ?? 300,
+    vouchers: fb.vouchers ?? [],
+    print_enabled: fb.print_enabled ?? false,
+    extra_copy_price: fb.extra_copy_price ?? 15000,
+    max_print_copies: fb.max_print_copies ?? 4,
+    loyalty_enabled: fb.loyalty_enabled ?? true,
+    loyalty_stamps_for_reward: fb.loyalty_stamps_for_reward ?? 5,
+    support_hotline: fb.support_hotline ?? "",
+    social_handle: fb.social_handle ?? "",
   };
 }
 
@@ -192,6 +270,28 @@ function parsePrice(text: string): number {
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.round(value) || min));
 }
+
+function addVoucher(): void {
+  form.vouchers.push({
+    code: "",
+    discount_amount: 10000,
+    discount_percent: 0,
+    max_uses: 0,
+    valid_until: "",
+    enabled: true,
+  });
+}
+
+const voucherProblem = computed(() =>
+  form.vouchers.some((v) => !/^[A-Z0-9-]{3,20}$/.test(v.code))
+    ? "Mã giảm giá cần 3–20 ký tự: chữ in hoa, số hoặc dấu -"
+    : "",
+);
+const bankProblem = computed(() =>
+  Boolean(form.bank_bin) !== Boolean(form.bank_account_number.trim())
+    ? "Chọn ngân hàng và nhập số tài khoản (hoặc để trống cả hai)"
+    : "",
+);
 
 function reset(): void {
   if (original.value) Object.assign(form, JSON.parse(JSON.stringify(original.value)));
@@ -229,6 +329,9 @@ async function changeSecret(kind: "admin-password" | "staff-pin"): Promise<void>
 
 async function save(): Promise<void> {
   if (!config.value || saving.value || !changed.value.length) return;
+  if (voucherProblem.value || bankProblem.value)
+    return notify(voucherProblem.value || bankProblem.value, true);
+  form.bank_account_name = form.bank_account_name.trim().toUpperCase();
 
   const next: AppConfig = JSON.parse(JSON.stringify(config.value));
   const fb = next.framebooth;
@@ -374,6 +477,206 @@ onMounted(() => void load());
       </div>
 
       <div class="card">
+        <h2 class="h2">Chuyển khoản (VietQR)</h2>
+        <div class="two">
+          <label class="field">
+            Ngân hàng
+            <span class="input-wrap">
+              <select v-model="form.bank_bin" style="font-weight: 600">
+                <option value="">— Không dùng QR —</option>
+                <option v-for="bank in BANKS" :key="bank.bin" :value="bank.bin">{{ bank.name }}</option>
+              </select>
+            </span>
+          </label>
+          <label class="field">
+            Số tài khoản
+            <span class="input-wrap">
+              <input
+                v-model.trim="form.bank_account_number"
+                inputmode="numeric"
+                placeholder="VD: 0123456789"
+              />
+            </span>
+          </label>
+        </div>
+        <label class="field">
+          Tên chủ tài khoản
+          <span class="input-wrap">
+            <input
+              v-model="form.bank_account_name"
+              placeholder="NGUYEN VAN A"
+              style="text-transform: uppercase"
+            />
+          </span>
+        </label>
+        <label class="field">
+          Mã QR hết hạn sau
+          <span class="input-wrap" style="width: 180px">
+            <input
+              v-model.number="form.payment_qr_expiry_seconds"
+              type="number"
+              min="60"
+              max="1800"
+              step="60"
+              @change="form.payment_qr_expiry_seconds = clamp(form.payment_qr_expiry_seconds, 60, 1800)"
+            />
+            <span class="unit">giây</span>
+          </span>
+        </label>
+        <p v-if="bankProblem" class="alert warn" style="display: block; margin: 0; font-size: 14px">
+          {{ bankProblem }}
+        </p>
+        <span class="muted" style="font-size: 13px; line-height: 1.5">
+          <template v-if="security?.sepay"
+            >Đã nối SePay ({{ security.sepay === "token" ? "API token" : "webhook" }}): tiền chuyển khoản được
+            xác nhận tự động.</template
+          >
+          <template v-else
+            >Chưa nối SePay: nhân viên xác nhận chuyển khoản bằng PIN. Thêm SEPAY_API_TOKEN vào file
+            <span class="mono">.env</span> để máy tự xác nhận.</template
+          >
+        </span>
+      </div>
+
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+          <h2 class="h2">Mã giảm giá</h2>
+          <button type="button" class="btn btn-ghost btn-sm" @click="addVoucher">+ Thêm mã</button>
+        </div>
+        <div v-if="!form.vouchers.length" class="empty">
+          Chưa có mã nào. Mã quà khách quen vẫn được tạo tự động.
+        </div>
+        <div v-for="(voucher, index) in form.vouchers" :key="index" class="voucher-row">
+          <span class="input-wrap" style="flex: 1 1 150px">
+            <input
+              v-model="voucher.code"
+              aria-label="Mã"
+              placeholder="TSL-HELLO"
+              class="mono"
+              @input="voucher.code = voucher.code.toUpperCase().replace(/[^A-Z0-9-]/g, '')"
+            />
+          </span>
+          <span class="input-wrap" style="flex: 1 1 130px">
+            <input
+              v-if="!voucher.discount_percent"
+              aria-label="Giảm (đồng)"
+              inputmode="numeric"
+              :value="priceText(voucher.discount_amount)"
+              @change="voucher.discount_amount = parsePrice(($event.target as HTMLInputElement).value)"
+            />
+            <input
+              v-else
+              v-model.number="voucher.discount_percent"
+              aria-label="Giảm (%)"
+              type="number"
+              min="1"
+              max="100"
+            />
+            <button
+              type="button"
+              class="unit unit-toggle"
+              :aria-label="voucher.discount_percent ? 'Đổi sang giảm theo đồng' : 'Đổi sang giảm theo %'"
+              @click="voucher.discount_percent = voucher.discount_percent ? 0 : 10"
+            >
+              {{ voucher.discount_percent ? "%" : "đ" }}
+            </button>
+          </span>
+          <span class="input-wrap" style="flex: 0 1 120px">
+            <input v-model.number="voucher.max_uses" aria-label="Số lượt" type="number" min="0" />
+            <span class="unit">lượt</span>
+          </span>
+          <span class="input-wrap" style="flex: 0 1 170px">
+            <input v-model="voucher.valid_until" aria-label="Hạn dùng" type="date" />
+          </span>
+          <input v-model="voucher.enabled" type="checkbox" class="switch" aria-label="Đang dùng" />
+          <button type="button" class="icon-btn" aria-label="Xoá mã" @click="form.vouchers.splice(index, 1)">
+            ✕
+          </button>
+        </div>
+        <span class="muted" style="font-size: 13px"
+          >0 lượt = không giới hạn · để trống ngày = không hết hạn.</span
+        >
+        <p v-if="voucherProblem" class="alert warn" style="display: block; margin: 0; font-size: 14px">
+          {{ voucherProblem }}
+        </p>
+      </div>
+
+      <div class="card" style="gap: 0">
+        <h2 class="h2" style="margin-bottom: 8px">In ảnh &amp; khách quen</h2>
+        <label class="toggle-row">
+          <span style="flex: 1">
+            <span style="display: block; font-weight: 700">Gửi lệnh in tới máy in</span>
+            <span class="muted" style="display: block; font-size: 13px"
+              >Tắt khi thử máy chưa có máy in: kiosk chỉ chạy hiệu ứng in.</span
+            >
+          </span>
+          <input v-model="form.print_enabled" type="checkbox" class="switch" />
+        </label>
+        <div class="two" style="padding: 12px 0; border-top: 1.5px solid var(--soft)">
+          <label class="field">
+            Giá mỗi bản in thêm
+            <span class="input-wrap">
+              <input
+                inputmode="numeric"
+                :value="priceText(form.extra_copy_price)"
+                @change="form.extra_copy_price = parsePrice(($event.target as HTMLInputElement).value)"
+              />
+              <span class="unit">đ</span>
+            </span>
+          </label>
+          <label class="field">
+            In tối đa
+            <span class="input-wrap">
+              <input
+                v-model.number="form.max_print_copies"
+                type="number"
+                min="1"
+                max="10"
+                @change="form.max_print_copies = clamp(form.max_print_copies, 1, 10)"
+              />
+              <span class="unit">bản</span>
+            </span>
+          </label>
+        </div>
+        <label class="toggle-row">
+          <span style="flex: 1">
+            <span style="display: block; font-weight: 700">Tích điểm khách quen</span>
+            <span class="muted" style="display: block; font-size: 13px"
+              >Khách nhập số điện thoại, đủ số lần thì được tặng một lần chụp.</span
+            >
+          </span>
+          <input v-model="form.loyalty_enabled" type="checkbox" class="switch" />
+        </label>
+        <div class="two" style="padding: 12px 0; border-top: 1.5px solid var(--soft)">
+          <label class="field">
+            Tặng sau
+            <span class="input-wrap">
+              <input
+                v-model.number="form.loyalty_stamps_for_reward"
+                type="number"
+                min="2"
+                max="20"
+                @change="form.loyalty_stamps_for_reward = clamp(form.loyalty_stamps_for_reward, 2, 20)"
+              />
+              <span class="unit">lần</span>
+            </span>
+          </label>
+          <label class="field">
+            Hotline khi máy lỗi
+            <span class="input-wrap"
+              ><input v-model.trim="form.support_hotline" placeholder="0909 123 456"
+            /></span>
+          </label>
+        </div>
+        <label class="field" style="padding-top: 12px; border-top: 1.5px solid var(--soft)">
+          Trang mạng xã hội (in trên ảnh story)
+          <span class="input-wrap"
+            ><input v-model.trim="form.social_handle" placeholder="@tslphotobooth"
+          /></span>
+        </label>
+      </div>
+
+      <div class="card">
         <h2 class="h2">Bảo mật</h2>
         <p
           v-if="security?.admin_password_default"
@@ -442,8 +745,8 @@ onMounted(() => void load());
           </button>
         </div>
         <span class="muted" style="font-size: 13px; line-height: 1.5"
-          >Lưu dạng mã băm trong file <span class="mono">.env</span> trên máy kiosk, không nằm trong
-          config.json.</span
+          >Lưu trong file <span class="mono">.env</span> trên máy kiosk, không nằm trong config.json. Sửa trực
+          tiếp trong file cũng có hiệu lực ngay.</span
         >
       </div>
     </section>
@@ -541,5 +844,33 @@ onMounted(() => void load());
     left: 12px;
     right: 12px;
   }
+}
+.input-wrap select {
+  background: transparent;
+  border: 0;
+  flex: 1;
+  font-size: 16px;
+  min-width: 0;
+}
+.input-wrap select:focus {
+  outline: none;
+}
+.voucher-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.voucher-row .input-wrap {
+  height: 46px;
+}
+.unit-toggle {
+  background: var(--soft);
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 800;
+  min-width: 34px;
+  padding: 6px 8px;
 }
 </style>
