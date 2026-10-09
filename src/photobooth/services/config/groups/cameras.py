@@ -213,10 +213,56 @@ class GroupCameraDigicamcontrol(BaseModelCamera):
     )
 
 
+class WigglecamNodes(BaseModel):
+    model_config = ConfigDict(title="Each camera is hooked to a node.")
+
+    # enable: bool = Field(
+    #     default=True,
+    #     description="Enable node. Calibration might be invalid if chaning the nodes.",
+    # )
+    description: str = Field(
+        default="",
+        description="Description just for you to distinguish the devices.",
+    )
+    address: str = Field(
+        default="0.0.0.0",
+        description="Host or IP address to connect to the node.",
+    )
+    base_port: int = Field(
+        default=5550,
+        description="Base port to connect to the node.",
+    )
+
+
+class GroupCameraWigglecam(BaseModelCamera):
+    model_config = ConfigDict(title="Wigglecam")
+
+    backend_type: Literal["Wigglecam"] = "Wigglecam"
+
+    index_cam_stills: int = Field(
+        default=0,
+        description="Index of one node below to capture stills.",
+    )
+    index_cam_video: int = Field(
+        default=0,
+        description="Index of one backend below to capture live preview and video.",
+    )
+
+    devices: list[WigglecamNodes] = Field(
+        description="List all nodes to connect to the app. The list is considered as indexed list starting at 0. So the first node should have device_id=0. For 4 cameras you end up with 4 entries in the list and need to assign them device_id's 0,1,2,3.",
+        default=[
+            WigglecamNodes(description="wiggle0_device-id=0", address="wiggle0"),
+            WigglecamNodes(description="wiggle1_device-id=1", address="wiggle1"),
+            WigglecamNodes(description="wiggle2_device-id=2", address="wiggle2"),
+            WigglecamNodes(description="wiggle3_device-id=3", address="wiggle3"),
+        ],
+    )
+
+
 # Supported camera backends: VirtualCamera + WebcamPyav everywhere, plus a tethered
 # DSLR/Mirrorless controller per platform (gphoto2 on Linux/macOS, digiCamControl on Windows)
 # and V4L2 webcams on Linux.
-BackendsBase = GroupCameraVirtual | GroupCameraPyav
+BackendsBase = GroupCameraVirtual | GroupCameraPyav | GroupCameraWigglecam
 if sys.platform == "win32":
     BackendsPlatform = BackendsBase | GroupCameraDigicamcontrol
 elif sys.platform == "linux":

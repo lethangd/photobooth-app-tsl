@@ -21,7 +21,13 @@ export default defineConfig(({ mode }) => ({
     outDir: fileURLToPath(new URL(mode === "demo" ? "./dist" : "../src/web/frontend", import.meta.url)),
     emptyOutDir: mode === "demo",
     rollupOptions: {
-      input: { framebooth: fileURLToPath(new URL("./framebooth.html", import.meta.url)) },
+      // the admin dashboard needs the backend, so the public demo only ships the kiosk
+      input: Object.fromEntries(
+        (mode === "demo" ? ["framebooth"] : ["framebooth", "admin"]).map((name) => [
+          name,
+          fileURLToPath(new URL(`./${name}.html`, import.meta.url)),
+        ]),
+      ),
       output: {
         entryFileNames: "kiosk/[name]-[hash].js",
         chunkFileNames: "kiosk/[name]-[hash].js",

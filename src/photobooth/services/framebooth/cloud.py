@@ -14,9 +14,10 @@ import logging
 import mimetypes
 import os
 import secrets
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from html import escape
 from pathlib import Path
 
@@ -136,7 +137,7 @@ class CloudDeliveryService(BaseService):
             collage=files[0][1],
             originals=[name for _, name in files[1 : 1 + len(originals)]],
             timelapse=files[-1][1] if timelapse else None,
-            expires=datetime.now(timezone.utc) + timedelta(days=retention_days),
+            expires=datetime.now(UTC) + timedelta(days=retention_days),
         )
         self._client.put_object(
             Bucket=self._settings.bucket,
@@ -176,7 +177,8 @@ class CloudDeliveryService(BaseService):
 body{{margin:0;font-family:system-ui,sans-serif;background:#f6f1f3;color:#1c1b1f;padding:16px;max-width:560px;margin-inline:auto}}
 h1{{font-size:1.4rem}}h2{{font-size:1.05rem;margin:24px 0 8px}}
 img,video{{width:100%;border-radius:12px;display:block;background:#ddd}}
-.btn{{display:block;text-align:center;margin:12px 0;padding:14px;border-radius:12px;background:#1c1b1f;color:#fff;text-decoration:none;font-weight:600}}
+.btn{{display:block;text-align:center;margin:12px 0;padding:14px;border-radius:12px;
+background:#1c1b1f;color:#fff;text-decoration:none;font-weight:600}}
 .grid{{display:grid;grid-template-columns:1fr 1fr;gap:8px}}.thumb img{{aspect-ratio:3/2;object-fit:cover}}
 small{{color:#666}}
 </style></head><body>
@@ -188,12 +190,35 @@ small{{color:#666}}
 <p><small>Liên kết có hiệu lực đến hết ngày {expires_text}. Hãy tải về trước khi hết hạn.</small></p>
 </body></html>"""
 
+    def usage(self, max_age_seconds: float = 60.0) -> dict:
+        """Objects and bytes stored below ``sessions/`` (cached for a minute, listing is billed per call)."""
+        if not (self._client and self._settings):
+            return {"available": False, "objects": 0, "bytes": 0, "bucket": None, "public_url": None}
+        now = time.monotonic()
+        cached = getattr(self, "_usage_cache", None)
+        if cached and now - cached[0] < max_age_seconds:
+            return cached[1]
+        objects = 0
+        size = 0
+        try:
+            paginator = self._client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=self._settings.bucket, Prefix=SESSIONS_PREFIX):
+                for obj in page.get("Contents", []):
+                    objects += 1
+                    size += int(obj.get("Size", 0))
+            result = {"available": True, "objects": objects, "bytes": size, "bucket": self._settings.bucket, "public_url": self._settings.public_url}
+        except Exception as exc:
+            logger.warning(f"could not read cloud usage: {exc}")
+            result = {"available": False, "objects": 0, "bytes": 0, "bucket": self._settings.bucket, "public_url": self._settings.public_url}
+        self._usage_cache = (now, result)
+        return result
+
     def sweep_expired(self) -> int:
         """Delete every object older than the retention period. Returns the number of deleted objects."""
         if not (self._client and self._settings):
             return 0
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=appconfig.framebooth.digital_delivery_retention_days)
+        cutoff = datetime.now(UTC) - timedelta(days=appconfig.framebooth.digital_delivery_retention_days)
         expired: list[dict[str, str]] = []
         try:
             paginator = self._client.get_paginator("list_objects_v2")

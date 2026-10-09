@@ -1,4 +1,3 @@
-import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
@@ -8,10 +7,11 @@ from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from pydantic import BaseModel
 
-from ..appconfig import appconfig
+from ..services import credentials
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 24 * 60
+USERS = {"admin": "Admin"}
 
 
 class Token(BaseModel):
@@ -29,43 +29,23 @@ class User(BaseModel):
     # disabled: Union[bool, None] = None # functionality not used currently.
 
 
-class UserInDB(User):
-    # hashed_password: str
-    password: str
-
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/auth/token")
 
 
-def verify_password(plain_password: str, password: str):
-    return secrets.compare_digest(plain_password.encode("utf8"), password.encode("utf8"))
-
-
-def get_users() -> dict[str, UserInDB]:
-    users_db = {
-        "admin": UserInDB(
-            username="admin",
-            full_name="Admin",
-            password=appconfig.common.admin_password.get_secret_value(),
-        )
-    }
-
-    return users_db
-
-
-def get_user(db: dict[str, UserInDB], user_id: str) -> UserInDB | None:
-    if user_id in db:
-        return db[user_id]
+def get_user(user_id: str) -> User | None:
+    if user_id in USERS:
+        return User(username=user_id, full_name=USERS[user_id])
 
     return None
 
 
-def authenticate_user(users_db, user_id: str, password: str):
-    user = get_user(users_db, user_id)
+def authenticate_user(user_id: str, password: str) -> User | None:
+    user = get_user(user_id)
     if not user:
-        return False
-    if not verify_password(password, user.password):
-        return False
+        return None
+    # the password is kept hashed in .env, see services/credentials.py
+    if not credentials.verify_admin_password(password):
+        return None
     return user
 
 
@@ -73,7 +53,7 @@ def create_access_token(data: dict, expires_delta: timedelta):
     to_encode = data.copy()
     expire = datetime.now(UTC) + expires_delta
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, appconfig.misc.secret, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, credentials.token_secret(), algorithm=ALGORITHM)
     return encoded_jwt
 
 
@@ -84,7 +64,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, appconfig.misc.secret, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, credentials.token_secret(), algorithms=[ALGORITHM])
         username = payload.get("sub")
         if not username:
             raise credentials_exception
@@ -92,7 +72,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     except InvalidTokenError as exc:
         raise credentials_exception from exc
 
-    user = get_user(get_users(), user_id=token_data.username)
+    user = get_user(user_id=token_data.username)
     if user is None:
         raise credentials_exception
     return user

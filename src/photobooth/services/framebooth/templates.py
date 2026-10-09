@@ -156,3 +156,8 @@ def template_to_public(template: FrameTemplate) -> dict:
         "slot_count": len(template.slots),
         "preview_url": f"/api/framebooth/templates/{template.id}/preview",
     }
+
+
+def detect_slots(path: Path, expected_slots: int) -> tuple[str, list[FrameSlot]]:
+    """Public wrapper to validate a frame before it is added (raises ValueError if the slots are not found)."""
+    return _detect_slots(path, expected_slots)

@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 
 from fastapi import APIRouter
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse, Response
 
 from .. import USERDATA_PATH
 
@@ -44,3 +44,12 @@ def classic_index():
     """Serve the original SPA index.html with forced revalidation."""
     headers = {"Cache-Control": "no-cache"}
     return FileResponse(path=_FRONTEND_DIR.joinpath("index.html"), headers=headers)
+
+
+@static_router.get("/admin")
+def admin_index():
+    """Admin dashboard SPA (built from frontend-kiosk/admin.html). Falls back to the classic admin if it is not built."""
+    admin_html = _FRONTEND_DIR.joinpath("admin.html")
+    if not admin_html.is_file():
+        return RedirectResponse("/classic#/admin")
+    return FileResponse(path=admin_html, headers={"Cache-Control": "no-cache"})

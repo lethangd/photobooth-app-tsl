@@ -3,24 +3,16 @@ AppConfig class providing central config
 
 """
 
-import secrets
-
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class GroupMisc(BaseModel):
     """
     Quite advanced or experimental, usually not necessary to touch. Can change any time.
+    The key signing admin logins is kept in .env (AUTH_TOKEN_SECRET), see services/credentials.py.
     """
 
     model_config = ConfigDict(title="Miscellaneous Config")
-
-    secret: str = Field(
-        default_factory=lambda: secrets.token_hex(16),
-        min_length=8,
-        max_length=64,
-        description="Secret to encrypt authentication data. If changed, login authorization is invalidated.",
-    )
 
     cmd_shutdown: str = Field(
         default="shutdown now",

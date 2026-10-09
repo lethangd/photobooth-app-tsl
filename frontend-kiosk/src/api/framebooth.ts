@@ -3,6 +3,7 @@ import * as demo from "./demo";
 import type {
   CaptureResult,
   KioskConfig,
+  PinContext,
   PinResult,
   RenderPayload,
   RenderResult,
@@ -66,7 +67,7 @@ export function renderCollage(payload: RenderPayload): Promise<RenderResult> {
   return postJson<RenderResult>(`${BASE}/render`, payload);
 }
 
-export function verifyPin(pin: string): Promise<PinResult> {
+export function verifyPin(pin: string, context?: PinContext): Promise<PinResult> {
   if (DEMO) return demo.verifyPin(pin);
-  return postJson<PinResult>(`${BASE}/verify-pin`, { pin });
+  return postJson<PinResult>(`${BASE}/verify-pin`, { pin, ...context });
 }

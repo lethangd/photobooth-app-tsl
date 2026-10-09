@@ -101,11 +101,6 @@ class GroupFramebooth(BaseModel):
         le=30,
         description="Unused since payments are confirmed by staff PIN. Kept so existing config files still load.",
     )
-    staff_pin: str = Field(
-        default="1234",
-        pattern=r"^[0-9]{4}$",
-        description="4-digit PIN the staff enters on the kiosk to confirm a guest has paid (package and paid retakes). Change it before going live.",
-    )
     retake_price: int = Field(
         default=10_000,
         ge=0,
@@ -191,6 +186,10 @@ class GroupFramebooth(BaseModel):
     reduce_motion: bool = Field(
         default=False,
         description="Replace the block page transitions and decorative animations by short fades. Enable on slow kiosk hardware if animations stutter.",
+    )
+    browser_camera_fallback: bool = Field(
+        default=True,
+        description="When the server camera fails, take photos with the browser camera instead (laptop webcam, or the phone/tablet front camera).",
     )
     sound_enabled: bool = Field(
         default=True,

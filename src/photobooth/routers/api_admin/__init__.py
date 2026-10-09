@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends
 
 from ..auth_dependencies_bearer import get_current_active_user
-from . import auth, config, enumerate, files, information, share
+from . import auth, config, enumerate, files, information, kiosk, multicamera, share
 
 __all__ = [
     "auth",
@@ -11,6 +11,8 @@ __all__ = [
     "enumerate",
     "files",
     "information",
+    "kiosk",
+    "multicamera",
     "share",
 ]
 
@@ -20,4 +22,6 @@ router.include_router(config.router, dependencies=[Depends(get_current_active_us
 router.include_router(enumerate.router, dependencies=[Depends(get_current_active_user)])
 router.include_router(files.router, dependencies=[Depends(get_current_active_user)])
 router.include_router(information.router, dependencies=[Depends(get_current_active_user)])
+router.include_router(kiosk.router, dependencies=[Depends(get_current_active_user)])
+router.include_router(multicamera.router, dependencies=[Depends(get_current_active_user)])
 router.include_router(share.router, dependencies=[Depends(get_current_active_user)])

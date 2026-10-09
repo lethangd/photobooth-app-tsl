@@ -3,6 +3,7 @@
 import { computed, ref, watch } from "vue";
 
 import { verifyPin } from "@/api/framebooth";
+import type { PinContext } from "@/api/types";
 import { sleep } from "@/lib/motion";
 import * as sfx from "@/lib/sfx";
 
@@ -11,7 +12,7 @@ import Star from "./Star.vue";
 
 const PIN_LENGTH = 4;
 
-const props = defineProps<{ open: boolean; description: string }>();
+const props = defineProps<{ open: boolean; description: string; context?: PinContext }>();
 const emit = defineEmits<{ close: []; success: [origin: { x: number; y: number }] }>();
 
 const digits = ref("");
@@ -57,7 +58,7 @@ async function submit(): Promise<void> {
   state.value = "checking";
   let ok = false;
   try {
-    const result = await verifyPin(digits.value);
+    const result = await verifyPin(digits.value, props.context);
     ok = result.ok;
     lockedSeconds.value = result.locked_seconds;
   } catch {

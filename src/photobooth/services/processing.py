@@ -21,17 +21,19 @@ from .processor.collage import JobModelCollage
 from .processor.image import JobModelImage
 from .processor.machine.processingmachine import ProcessingMachine, userEvents
 from .processor.models import Capture
+from .processor.multicamera import JobModelMulticamera
 from .sse import sse_service
 from .sse.sse_ import SseEventProcessStateinfo, SseEventTranslateableFrontendNotification
 
 logger = logging.getLogger(__name__)
 
 
-ActionType = Literal["image", "collage"]
-JobModelType = JobModelImage | JobModelCollage
+ActionType = Literal["image", "collage", "multicamera"]
+JobModelType = JobModelImage | JobModelCollage | JobModelMulticamera
 ACTION_TO_MODEL: Mapping[ActionType, type[JobModelType]] = {
     "image": JobModelImage,
     "collage": JobModelCollage,
+    "multicamera": JobModelMulticamera,
 }
 
 

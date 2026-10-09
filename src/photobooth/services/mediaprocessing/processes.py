@@ -10,12 +10,13 @@ from ...appconfig import appconfig
 from ...database.models import Mediaitem
 from ...utils.media_encode import encode
 from ...utils.metrics_timer import MetricsTimer
-from ..config.groups.actions import CollageProcessing, SingleImageProcessing
-from .context import CollageContext, ImageContext
+from ..config.groups.actions import CollageProcessing, MulticameraProcessing, SingleImageProcessing
+from .context import CollageContext, ImageContext, MulticameraContext
 from .pipeline import NextStep, Pipeline, PipelineStep
 from .steps.animation_collage_shared import AddPredefinedImagesStep, PostPredefinedImagesStep
 from .steps.collage import MergeCollageStep
 from .steps.image import FillBackgroundStep, ImageFrameStep, ImageMountStep, PluginFilterStep, RemovebgStep, TextStep
+from .steps.multicamera import AlignAsPerCalibrationStep
 
 logger = logging.getLogger(__name__)
 
@@ -140,3 +141,36 @@ def process_and_generate_collage(files_in: list[Path], mediaitem: Mediaitem):
     canvas = canvas.convert("RGB") if canvas.mode in ("RGBA", "P") else canvas
     with MetricsTimer(f"{process_and_generate_collage.__name__} {encode.__name__}"):
         encode([canvas], mediaitem.processed)
+
+
+def process_wigglegram_inner(files_in: list[Path], config: MulticameraProcessing, preview: bool) -> list[Image.Image]:
+    ## stage: merge captured images and predefined to one image with transparency
+    multicamera_images: list[Image.Image] = [Image.open(image_in) for image_in in files_in]
+
+    context = MulticameraContext(multicamera_images)
+    steps = []
+    steps.append(AlignAsPerCalibrationStep())
+    # steps.append(AutoPivotPointStep())
+    # steps.append(OffsetPerOpticalFlowStep())
+    # steps.append(CropCommonAreaStep())
+
+    pipeline = Pipeline[MulticameraContext](*steps)
+    with MetricsTimer(process_and_generate_wigglegram.__name__):
+        pipeline(context)
+
+    return context.images
+
+
+def process_and_generate_wigglegram(files_in: list[Path], mediaitem: Mediaitem):
+    # get config from mediaitem, that is passed as json dict (model_dump) along with it
+    config = MulticameraProcessing(**mediaitem.pipeline_config)
+    manipulated_image = process_wigglegram_inner(files_in, config, preview=False)
+
+    ## finalize, create sequence and save
+    # sequence like 1-2-3-4-3-2-restart
+    sequence_images = manipulated_image
+    sequence_images = sequence_images + list(reversed(sequence_images[1 : len(sequence_images) - 1]))  # add reversed list except first+last item
+    with MetricsTimer(f"{process_and_generate_wigglegram.__name__} {encode.__name__}"):
+        encode(sequence_images, mediaitem.processed, durations=config.duration)
+
+    return mediaitem

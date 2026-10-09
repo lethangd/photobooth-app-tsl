@@ -57,3 +57,12 @@ def test_private_css(client: TestClient):
     assert Path(USERDATA_PATH, "private.css").exists()
     assert response.status_code == 200
     assert response.text.strip() == TEST_STRING
+
+
+def test_admin_serves_dashboard(client: TestClient):
+    response = client.get("../admin", follow_redirects=False)
+    if response.status_code == 307:  # admin SPA not built in this checkout
+        assert response.headers["location"] == "/classic#/admin"
+    else:
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 from photobooth.appconfig import appconfig
@@ -15,7 +15,7 @@ def _service_with_fake_client(objects: list[dict]) -> tuple[CloudDeliveryService
 
 
 def test_sweep_deletes_only_expired_sessions():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     retention = appconfig.framebooth.digital_delivery_retention_days
     service, client = _service_with_fake_client(
         [
@@ -32,7 +32,7 @@ def test_sweep_deletes_only_expired_sessions():
 
 
 def test_sweep_without_expired_does_not_call_delete():
-    service, client = _service_with_fake_client([{"Key": "sessions/new/a.jpg", "LastModified": datetime.now(timezone.utc)}])
+    service, client = _service_with_fake_client([{"Key": "sessions/new/a.jpg", "LastModified": datetime.now(UTC)}])
 
     assert service.sweep_expired() == 0
     client.delete_objects.assert_not_called()

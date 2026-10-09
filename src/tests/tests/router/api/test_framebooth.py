@@ -7,6 +7,7 @@ from PIL import Image
 
 from photobooth.appconfig import appconfig
 from photobooth.container import container
+from photobooth.services import credentials
 
 logger = logging.getLogger(name=None)
 
@@ -159,7 +160,7 @@ def test_framebooth_render_unknown_filter(client: TestClient):
 def test_framebooth_verify_pin(client: TestClient):
     from photobooth.routers.api import framebooth as framebooth_router
 
-    correct = appconfig.framebooth.staff_pin
+    correct = credentials.DEFAULT_STAFF_PIN
     wrong = "0000" if correct != "0000" else "1111"
 
     assert client.post("/framebooth/verify-pin", json={"pin": correct}).json() == {"ok": True, "locked_seconds": 0}

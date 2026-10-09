@@ -47,6 +47,7 @@ export interface KioskConfig {
   retake_max_shots: number;
   reduce_motion: boolean;
   sound_enabled: boolean;
+  browser_camera_fallback?: boolean;
   filters: FilterOption[];
   frame_types: FrameTypeConfig[];
 }
@@ -86,6 +87,14 @@ export interface TimelapsePayload {
   capture_ids: string[];
   filter_id: string;
   session_id: string | null;
+}
+
+/** What the staff confirms with the PIN; the server derives the amount from its own prices. */
+export interface PinContext {
+  session_id: string;
+  purpose: "package" | "retake";
+  slot_count?: number;
+  retake_shots?: number;
 }
 
 export interface PinResult {

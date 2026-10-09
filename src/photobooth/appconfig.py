@@ -5,7 +5,11 @@ AppConfig class providing central config
 
 from pydantic import ValidationError
 
+from .services import credentials
 from .services.config.appconfig_ import AppConfig
+
+# older versions kept the admin password, staff PIN and token key in config.json; they now live in .env
+credentials.migrate_from_config_file()
 
 try:
     appconfig = AppConfig()

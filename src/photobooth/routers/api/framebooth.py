@@ -7,13 +7,13 @@ kiosk frontend (``web/frontend/framebooth.html``) expects. Business parameters
 from the Admin config page.
 """
 
-import hmac
 import io
 import logging
 import tempfile
 import time
 from pathlib import Path
 from threading import Lock
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -25,7 +25,9 @@ from ... import PATH_PROCESSED
 from ...appconfig import appconfig
 from ...container import container
 from ...database.models import Mediaitem
+from ...services import credentials
 from ...services.framebooth import filters, renderer, templates, timelapse
+from ...services.framebooth.ledger import ledger
 from ...services.framebooth.models import FrameTemplate
 from ...services.framebooth.session_store import session_store
 from ...utils.helper import filename_str_time
@@ -51,6 +53,32 @@ class PreviewRequest(BaseModel):
 
 class PinRequest(BaseModel):
     pin: str = Field(max_length=16)
+    # what the staff confirms; the amount is derived from the server-side prices
+    session_id: str | None = Field(default=None, max_length=64)
+    purpose: Literal["package", "retake"] = "package"
+    slot_count: int | None = None
+    retake_shots: int | None = Field(default=None, ge=1, le=20)
+
+
+def _pin_amount(request: PinRequest) -> int:
+    config = appconfig.framebooth
+    if request.purpose == "retake":
+        return (request.retake_shots or 0) * config.retake_price
+    return next((tier.price for tier in config.pricing if tier.slot_count == request.slot_count), 0)
+
+
+def _record_pin(request: PinRequest, ok: bool, locked: bool = False) -> None:
+    """Revenue/PIN bookkeeping must never break the guest flow."""
+    amount = _pin_amount(request)
+    try:
+        ledger.record_pin(request.session_id, request.purpose, amount, ok, locked)
+        if ok and request.session_id:
+            if request.purpose == "retake":
+                ledger.record_retake_paid(request.session_id, request.retake_shots or 0, amount)
+            else:
+                ledger.record_package_paid(request.session_id, request.slot_count or 0, amount)
+    except Exception as exc:
+        logger.error(f"could not write kiosk ledger: {exc}")
 
 
 # brute-force guard for the staff PIN: after too many wrong tries the kiosk is locked for a while
@@ -132,6 +160,7 @@ def api_get_framebooth_config():
         "retake_max_shots": config.retake_max_shots,
         "reduce_motion": config.reduce_motion,
         "sound_enabled": config.sound_enabled,
+        "browser_camera_fallback": config.browser_camera_fallback,
         "digital_delivery_default_enabled": config.digital_delivery_default_enabled,
         "digital_delivery_retention_days": config.digital_delivery_retention_days,
         "timelapse_render_mock_seconds": config.timelapse_render_mock_seconds,
@@ -148,10 +177,12 @@ def api_verify_staff_pin(request: PinRequest):
     with _pin_lock:
         now = time.monotonic()
         if now < _pin_locked_until:
+            _record_pin(request, ok=False, locked=True)
             return {"ok": False, "locked_seconds": int(_pin_locked_until - now) + 1}
 
-        if hmac.compare_digest(request.pin.encode(), appconfig.framebooth.staff_pin.encode()):
+        if credentials.verify_staff_pin(request.pin):
             _pin_failures = 0
+            _record_pin(request, ok=True)
             return {"ok": True, "locked_seconds": 0}
 
         _pin_failures += 1
@@ -159,7 +190,9 @@ def api_verify_staff_pin(request: PinRequest):
         if _pin_failures >= _PIN_MAX_FAILURES:
             _pin_failures = 0
             _pin_locked_until = now + _PIN_LOCK_SECONDS
+            _record_pin(request, ok=False, locked=True)
             return {"ok": False, "locked_seconds": _PIN_LOCK_SECONDS}
+        _record_pin(request, ok=False)
         return {"ok": False, "locked_seconds": 0}
 
 
@@ -286,6 +319,10 @@ def api_render_collage(request: RenderRequest):
 
     cloud_url = _upload_digital_delivery(request, output_path) if request.digital_delivery else None
     local_url = f"/gallery/mediaviewer/{mediaitem.id}"
+    try:
+        ledger.record_print(request.session_id, str(mediaitem.id), request.digital_delivery, cloud_url)
+    except Exception as exc:
+        logger.error(f"could not write kiosk ledger: {exc}")
 
     return {
         "id": str(mediaitem.id),

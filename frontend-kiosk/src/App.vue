@@ -156,6 +156,11 @@ const pinDescription = computed(() =>
     ? `Xác nhận khách đã thanh toán\nchụp lại ${retakeCount.value} lần · ${money(retakeCount.value * retakePrice.value)}`
     : `Xác nhận khách đã thanh toán\ngói ${store.slotCount} ảnh · ${money(store.packageConfig?.price ?? 0)}`,
 );
+const pinContext = computed(() =>
+  pinPurpose.value === "retake"
+    ? { session_id: store.sessionId, purpose: "retake" as const, retake_shots: retakeCount.value }
+    : { session_id: store.sessionId, purpose: "package" as const, slot_count: store.slotCount },
+);
 const stripPhotos = computed(() =>
   Array.from({ length: store.slotCount }, (_, i) => {
     const item = store.selectedCaptures[i];
@@ -365,6 +370,8 @@ const cameraSource = ref<"server" | "browser" | "samples">("server");
 const browserVideo = ref<HTMLVideoElement | null>(null);
 
 async function useBrowserCamera(): Promise<boolean> {
+  // the admin can turn the webcam fallback off (the public demo always allows it)
+  if (!DEMO && store.config?.browser_camera_fallback === false) return false;
   if (!browserCameraSupported()) return false;
   cameraSource.value = "browser";
   await nextTick();
@@ -1660,6 +1667,7 @@ onBeforeUnmount(() => clearTimers());
     <PinDialog
       :open="pinOpen"
       :description="pinDescription"
+      :context="pinContext"
       @close="pinOpen = false"
       @success="onPinSuccess"
     />

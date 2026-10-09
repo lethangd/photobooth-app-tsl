@@ -1,15 +1,22 @@
 import logging
+import os
+import tempfile
 from collections.abc import Generator
+from pathlib import Path
 
-import pytest
-from fastapi.testclient import TestClient
+# keep the admin password / staff PIN written by tests away from the real .env (set before the app is imported)
+os.environ["PHOTOBOOTH_SECRETS_FILE"] = str(Path(tempfile.gettempdir(), f"photobooth-test-{os.getpid()}.env"))
+os.environ["AUTH_TOKEN_SECRET"] = "test-token-secret-0123456789abcdef0123456789"  # stable across the per-test reset of the secrets file
 
-from photobooth.appconfig import appconfig
-from photobooth.application import app
-from photobooth.container import container
-from photobooth.database.database import create_db_and_tables
-from photobooth.services.collection import MediacollectionService
-from tests.tests.util import dummy_mediaitem
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from photobooth.appconfig import appconfig  # noqa: E402
+from photobooth.application import app  # noqa: E402
+from photobooth.container import container  # noqa: E402
+from photobooth.database.database import create_db_and_tables  # noqa: E402
+from photobooth.services.collection import MediacollectionService  # noqa: E402
+from tests.tests.util import dummy_mediaitem  # noqa: E402
 
 logger = logging.getLogger(name=None)
 
@@ -59,6 +66,7 @@ def global_function_setup1():
 @pytest.fixture(scope="function", autouse=True)
 def global_function_setup2():
     appconfig.reset_defaults()
+    Path(os.environ["PHOTOBOOTH_SECRETS_FILE"]).unlink(missing_ok=True)  # back to default password "0000" / PIN "1234"
 
     appconfig.actions.image[0].jobcontrol.countdown_capture = 0.2
     appconfig.actions.collage[0].jobcontrol.countdown_capture = 0.2

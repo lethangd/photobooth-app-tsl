@@ -16,6 +16,7 @@ from ...utils.helper import filename_str_time
 from ..collection import Cache
 from ..config.groups.actions import (
     BaseConfigurationSet,
+    MulticameraJobControl,
     MultiImageJobControl,
     SingleImageJobControl,
     SingleImageProcessing,
@@ -185,7 +186,7 @@ class JobModelBase(ABC, Generic[T]):
             return False
 
     def start_countdown(self, offset: float = 0.0):
-        if isinstance(self._configuration_set.jobcontrol, SingleImageJobControl):
+        if isinstance(self._configuration_set.jobcontrol, SingleImageJobControl | MulticameraJobControl):
             duration_user = self._configuration_set.jobcontrol.countdown_capture
         elif isinstance(self._configuration_set.jobcontrol, MultiImageJobControl):
             if self.captures_taken == 0:
