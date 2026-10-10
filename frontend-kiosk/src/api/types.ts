@@ -61,6 +61,8 @@ export interface KioskConfig {
   loyalty_stamps_for_reward?: number;
   support_hotline?: string;
   has_vouchers?: boolean;
+  /** ambient effects the admin can switch off one by one */
+  effects?: { foil: boolean; holo: boolean; glow: boolean; grain: boolean; leak: boolean; parallax: boolean };
   filters: FilterOption[];
   frame_types: FrameTypeConfig[];
 }

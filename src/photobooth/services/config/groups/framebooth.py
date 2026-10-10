@@ -66,7 +66,6 @@ class FramebootVoucher(BaseModel):
     enabled: bool = True
 
 
-
 class GroupFramebooth(BaseModel):
     """Configure the self-service kiosk (Framebooth) flow: pricing, timings, filters."""
 
@@ -205,6 +204,16 @@ class GroupFramebooth(BaseModel):
         default=False,
         description="Replace the block page transitions and decorative animations by short fades. Enable on slow kiosk hardware if animations stutter.",
     )
+    fx_foil_sweep: bool = Field(default=True, description="Ambient: a foil light sweeps over holo labels and main buttons every few seconds.")
+    fx_holo_flow: bool = Field(default=True, description="Ambient: the colours of holo borders and the title-bar line flow slowly.")
+    fx_glow_breathe: bool = Field(
+        default=True, description="Ambient: the glow behind the main object breathes, and flashes when the main button is pressed."
+    )
+    fx_film_grain: bool = Field(
+        default=True, description="Ambient: a moving film-grain layer over the screen (try on the real kiosk, turn off if it stutters)."
+    )
+    fx_light_leak: bool = Field(default=True, description="Ambient: the orange-pink light leak on sample photos drifts slowly.")
+    fx_parallax: bool = Field(default=True, description="Idle screen: the frame and the person stepping out of it float at different depths.")
     browser_camera_fallback: bool = Field(
         default=True,
         description="When the server camera fails, take photos with the browser camera instead (laptop webcam, or the phone/tablet front camera).",
@@ -318,4 +327,3 @@ class GroupFramebooth(BaseModel):
         le=365,
         description="Days the free-session code stays valid.",
     )
-

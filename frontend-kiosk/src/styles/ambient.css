@@ -1,0 +1,717 @@
+/*
+ * "Living material": ambient motion that runs even when nobody touches the kiosk, plus the
+ * micro-interactions of the second motion pass. Rules of the house for the kiosk PC:
+ *   - continuous effects only animate transform / translate / opacity / background-position
+ *     (or a registered custom property feeding background-position);
+ *   - no animated blur, backdrop-filter or large box-shadow;
+ *   - every ambient effect hangs off one class on .app (fx-foil, fx-holo, fx-glow, fx-grain,
+ *     fx-leak, fx-parallax) that the admin can switch off, and all of them pause while a page
+ *     transition runs (html.tx-running).
+ */
+
+@property --foil-x {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 115%;
+}
+
+@property --holo-x {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+@property --ring-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.app {
+  --foil-layer: linear-gradient(105deg, transparent 43%, rgba(255, 255, 255, 0.78) 50%, transparent 57%);
+  --foil-layer-soft: linear-gradient(105deg, transparent 43%, rgba(255, 255, 255, 0.32) 50%, transparent 57%);
+  --holo-loop: linear-gradient(90deg, #c9b8ff, #a8f0e0, #ffd2b8, #c9b8ff);
+}
+
+.app.fx-foil {
+  --anim-foil: foil-sweep 5.2s ease-in-out infinite;
+}
+
+.app.fx-holo {
+  --anim-holo: holo-flow 8s linear infinite;
+}
+
+/* ═════════════ 1a foil sweep + 1b flowing holo ═════════════ */
+
+/* holo surfaces: foil band on top, a seamless holo loop below */
+.app :is(.sticker:not(.sticker--cobalt), .pill--holo, .holo, .brand-tag):not(.e-pop, .e-line, .e-card, .e-rise) {
+  animation: var(--anim-foil, none 0s), var(--anim-holo, none 0s);
+  animation-delay: calc(var(--i, 0) * -0.83s - 0.4s), 0s;
+  background-image: var(--foil-layer), var(--holo-loop);
+  background-position:
+    var(--foil-x) 0,
+    var(--holo-x) 0;
+  background-repeat: no-repeat, repeat;
+  background-size:
+    300% 100%,
+    200% 100%;
+}
+
+/* solid main buttons: a softer foil band over the cobalt */
+.app :is(.btn-primary, .sticker--cobalt):not(.e-pop, .e-line, .e-card, .e-rise) {
+  animation: var(--anim-foil, none 0s);
+  animation-delay: calc(var(--i, 0) * -0.61s - 2.1s);
+  animation-duration: 4.6s;
+  background-image: var(--foil-layer-soft);
+  background-position: var(--foil-x) 0;
+  background-repeat: no-repeat;
+  background-size: 300% 100%;
+}
+
+/* touched: one quick extra sweep */
+.app [data-foil-now] {
+  animation: foil-fast 520ms ease-out 1 !important;
+}
+
+/* holo line under the title bar */
+.topbar::after {
+  background: var(--holo-loop);
+  background-position: var(--holo-x) 0;
+  background-size: 200% 100%;
+  bottom: -1.5px;
+  content: "";
+  height: 2px;
+  left: 0;
+  position: absolute;
+  right: 0;
+}
+
+.fx-holo .topbar::after {
+  animation: holo-flow 8s linear infinite;
+}
+
+@keyframes foil-sweep {
+  0% {
+    --foil-x: 115%;
+  }
+  24%,
+  100% {
+    --foil-x: -15%;
+  }
+}
+
+@keyframes foil-fast {
+  from {
+    --foil-x: 115%;
+  }
+  to {
+    --foil-x: -15%;
+  }
+}
+
+@keyframes holo-flow {
+  to {
+    --holo-x: 200%;
+  }
+}
+
+/* ═════════════ 1c breathing glow ═════════════ */
+
+.fx-glow .idle-glow,
+.fx-glow .main-glow {
+  animation: glow-breathe 4s ease-in-out infinite;
+}
+
+.main-glow {
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.85) 0%,
+    rgba(201, 184, 255, 0.6) 26%,
+    rgba(168, 240, 224, 0.38) 44%,
+    rgba(255, 210, 184, 0.2) 58%,
+    rgba(233, 236, 242, 0) 70%
+  );
+  border-radius: 50%;
+  height: 90rem;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  translate: -50% -50%;
+  width: 90rem;
+  z-index: -1;
+}
+
+/* main button pressed: the glow fires like a flash */
+.app.glow-flash :is(.idle-glow, .main-glow) {
+  animation: glow-flash 520ms ease-out 1 !important;
+}
+
+@keyframes glow-breathe {
+  0%,
+  100% {
+    opacity: 0.82;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes glow-flash {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.18);
+    filter: brightness(1.5);
+  }
+  100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+}
+
+/* ═════════════ 1d running film grain ═════════════ */
+
+.grain-layer {
+  background-image: var(--grain-tile);
+  background-size: 256px 256px;
+  inset: -96px;
+  opacity: 0.07;
+  pointer-events: none;
+  position: fixed;
+  transition: opacity 300ms ease-out;
+  z-index: 88;
+}
+
+.fx-grain .grain-layer {
+  animation: grain-run 1s steps(1, end) infinite;
+}
+
+/* the moment after a flash: thicker grain for 300 ms */
+.app.grain-burst .grain-layer {
+  opacity: 0.2;
+  transition: none;
+}
+
+@keyframes grain-run {
+  0% {
+    transform: translate(0, 0);
+  }
+  10% {
+    transform: translate(-41px, 23px);
+  }
+  20% {
+    transform: translate(17px, -58px);
+  }
+  30% {
+    transform: translate(-73px, -11px);
+  }
+  40% {
+    transform: translate(52px, 47px);
+  }
+  50% {
+    transform: translate(-19px, 71px);
+  }
+  60% {
+    transform: translate(66px, -33px);
+  }
+  70% {
+    transform: translate(-58px, 39px);
+  }
+  80% {
+    transform: translate(29px, 13px);
+  }
+  90% {
+    transform: translate(-7px, -69px);
+  }
+}
+
+/* ═════════════ 1e drifting light leak on the sample photos ═════════════ */
+
+.fx-leak .idle-arch-glow {
+  animation: leak-drift 13s ease-in-out infinite;
+  background-size: 150% 150%;
+}
+
+.strip::after {
+  background: radial-gradient(circle at 50% 50%, rgba(255, 150, 90, 0.5), transparent 45%);
+  background-position: 100% 0;
+  background-repeat: no-repeat;
+  background-size: 200% 70%;
+  border-radius: inherit;
+  content: "";
+  inset: 0;
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.fx-leak .strip::after {
+  animation: leak-edge 12s ease-in-out infinite;
+  opacity: 1;
+}
+
+@keyframes leak-drift {
+  0%,
+  100% {
+    background-position: 100% 0%;
+  }
+  50% {
+    background-position: 30% 70%;
+  }
+}
+
+@keyframes leak-edge {
+  0%,
+  100% {
+    background-position: 100% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+}
+
+/* ═════════════ 2 depth: the person steps out of the arch ═════════════ */
+
+/* photo and cut-out float together (they must stay aligned), the frame floats less */
+.fx-parallax .idle-arch {
+  animation: float-far 6s ease-in-out infinite;
+}
+
+.fx-parallax :is(.idle-arch-photo, .idle-arch-cutout) {
+  animation: float-near-photo 6s ease-in-out infinite;
+}
+
+.fx-parallax .idle-arch-cutout {
+  animation:
+    person-step 760ms var(--spring) calc(var(--enter-base) + 2 * var(--enter-step) + 150ms) both,
+    float-near 6s ease-in-out infinite;
+}
+
+.idle-arch-cutout {
+  animation: person-step 760ms var(--spring) calc(var(--enter-base) + 2 * var(--enter-step) + 150ms) both;
+}
+
+@keyframes float-far {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -4px;
+  }
+}
+
+/* inside the frame: 6 px on top of the frame's 4 px = 10 px */
+@keyframes float-near-photo {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -6px;
+  }
+}
+
+@keyframes float-near {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -10px;
+  }
+}
+
+/* the person rises 30 px out of the photo and settles with a small bounce */
+@keyframes person-step {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ═════════════ 4 numbers ═════════════ */
+
+/* RGB split jolt when a price or a total changes (re-mounted with :key) */
+.glitch {
+  animation: rgb-glitch 140ms steps(3, end) 1;
+  display: inline-block;
+}
+
+@keyframes rgb-glitch {
+  0% {
+    text-shadow:
+      -7px 0 rgba(255, 79, 163, 0.85),
+      7px 0 rgba(43, 191, 255, 0.9);
+    translate: 3px 0;
+  }
+  50% {
+    text-shadow:
+      5px 0 rgba(255, 79, 163, 0.8),
+      -5px 0 rgba(43, 191, 255, 0.85);
+    translate: -2px 0;
+  }
+  100% {
+    text-shadow:
+      -2px 0 rgba(255, 79, 163, 0.7),
+      2px 0 rgba(43, 191, 255, 0.75);
+    translate: 0 0;
+  }
+}
+
+/* each countdown second lands with a big split that settles */
+.count-num {
+  animation:
+    count-pop 700ms var(--spring) both,
+    count-split 380ms ease-out both;
+}
+
+@keyframes count-split {
+  from {
+    text-shadow:
+      -14px 0 rgba(255, 79, 163, 0.9),
+      14px 0 rgba(43, 191, 255, 0.9);
+  }
+  to {
+    text-shadow:
+      -2px 0 rgba(255, 79, 163, 0.6),
+      2px 0 rgba(43, 191, 255, 0.65);
+  }
+}
+
+/* ═════════════ 5 capture climax ═════════════ */
+
+/* last second before the shot: holo frame racing round, the glow pulls in */
+.live.charging {
+  background: var(--holo-loop);
+  background-position: var(--holo-x) 0;
+  background-size: 200% 100%;
+  animation: holo-flow 600ms linear infinite;
+}
+
+.live {
+  position: relative;
+}
+
+.live::before {
+  background: radial-gradient(circle, rgba(201, 184, 255, 0.55), rgba(233, 236, 242, 0) 62%);
+  border-radius: 50%;
+  content: "";
+  inset: -14% -8%;
+  opacity: 0.7;
+  pointer-events: none;
+  position: absolute;
+  transition:
+    transform 900ms cubic-bezier(0.6, 0, 0.9, 0.4),
+    opacity 900ms ease-in;
+  z-index: -1;
+}
+
+.live.charging::before {
+  opacity: 1;
+  transform: scale(0.72);
+}
+
+/* the shot "freezes" with grain for a moment before flying to its thumbnail */
+.freeze-shot {
+  inset: 0;
+  object-fit: cover;
+  pointer-events: none;
+  position: absolute;
+  z-index: 4;
+}
+
+.freeze-grain {
+  background-image: var(--grain-tile);
+  background-size: 180px 180px;
+  inset: 0;
+  opacity: 0.28;
+  pointer-events: none;
+  position: absolute;
+  z-index: 5;
+}
+
+/* ═════════════ 5 print: out of the slot, developing like an instant photo ═════════════ */
+
+.print-slot {
+  background: var(--ink);
+  border-radius: 1.6rem;
+  box-shadow: inset 0 -0.6rem 0 #2a2d36;
+  height: 3.2rem;
+  left: 50%;
+  position: absolute;
+  top: calc(var(--slot-top, 4rem) - 2.2rem);
+  translate: -50% 0;
+  width: 40rem;
+  z-index: 3;
+}
+
+.res-print.printing .res-paper {
+  animation: paper-out 2.6s cubic-bezier(0.3, 0.1, 0.3, 1) both;
+}
+
+.res-print.printing .res-paper img {
+  animation: develop 2.6s ease-out both;
+}
+
+.res-print.printed .res-paper {
+  background-image: var(--foil-layer);
+  background-position: var(--foil-x) 0;
+  background-repeat: no-repeat;
+  background-size: 300% 100%;
+  animation: foil-fast 700ms ease-out 1;
+}
+
+.res-print.printed .res-paper img {
+  animation: foil-glint 700ms ease-out 1;
+}
+
+/* the sheet slides down out of the slot: moving down by X while the top X stays clipped,
+   so nothing ever shows above the slot line */
+@keyframes paper-out {
+  0% {
+    clip-path: inset(100% 0 0 0);
+    transform: translateY(-100%) rotate(0deg);
+  }
+  70% {
+    clip-path: inset(0 0 0 0);
+    transform: translateY(0) rotate(0deg);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    transform: translateY(0) rotate(var(--rot, -3deg));
+  }
+}
+
+/* from a white sheet to the full picture */
+@keyframes develop {
+  0% {
+    filter: brightness(1.9) saturate(0) contrast(0.4);
+    opacity: 0.15;
+  }
+  60% {
+    filter: brightness(1.25) saturate(0.6) contrast(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    filter: none;
+    opacity: 1;
+  }
+}
+
+@keyframes foil-glint {
+  40% {
+    filter: brightness(1.12);
+  }
+}
+
+/* ═════════════ 6 micro-interactions ═════════════ */
+
+/* any touch: a holo ring spreads from the finger */
+.tap-ring {
+  animation: tap-ring 620ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+  background: conic-gradient(#c9b8ff, #a8f0e0, #ffd2b8, #9b7bff, #c9b8ff);
+  border-radius: 50%;
+  height: 9rem;
+  mask: radial-gradient(circle, transparent 62%, #000 64%, #000 72%, transparent 74%);
+  pointer-events: none;
+  position: fixed;
+  translate: -50% -50%;
+  width: 9rem;
+  z-index: 85;
+}
+
+@keyframes tap-ring {
+  from {
+    opacity: 1;
+    transform: scale(0.2);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+/* choosing photos: the others step back, the chosen ones get a running holo ring */
+/* filter, not opacity: the entrance animation of the cards keeps holding opacity */
+.photo-grid.has-pick .photo-card:not(.selected) {
+  filter: opacity(0.55);
+  translate: 0 2px;
+}
+
+.photo-card {
+  transition:
+    scale 450ms var(--spring),
+    filter 260ms ease,
+    translate 260ms ease;
+}
+
+.photo-card.selected::after {
+  box-shadow: none;
+}
+
+.photo-card.selected::before {
+  animation: ring-run 2.4s linear infinite;
+  background: conic-gradient(from var(--ring-angle), #c9b8ff, #a8f0e0, #ffd2b8, #9b7bff, #c9b8ff);
+  border-radius: inherit;
+  content: "";
+  inset: 0;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  padding: 0.5rem;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+@keyframes ring-run {
+  to {
+    --ring-angle: 360deg;
+  }
+}
+
+/* picking an option (package, colour, retake count, posing time): one foil pass and a bounce */
+[data-picked] {
+  animation:
+    choose-bump 460ms var(--spring) 1,
+    foil-fast 600ms ease-out 1;
+  background-image: var(--foil-layer);
+  background-position: var(--foil-x) 0;
+  background-repeat: no-repeat;
+  background-size: 300% 100%;
+}
+
+@keyframes choose-bump {
+  0% {
+    scale: 1;
+  }
+  35% {
+    scale: 1.06;
+  }
+  100% {
+    scale: 1;
+  }
+}
+
+/* ═════════════ 3 page transitions: Holo Wipe & Flash Cut ═════════════ */
+
+.tx-wipe {
+  background:
+    linear-gradient(90deg, transparent 38%, rgba(255, 255, 255, 0.85) 50%, transparent 62%),
+    linear-gradient(90deg, #c9b8ff, #a8f0e0, #ffd2b8, #c9b8ff 70%, #e9ecf2);
+  height: 100%;
+  position: absolute;
+  top: 0;
+  transform: translateX(400vmax) skewX(-18deg);
+  will-change: transform;
+}
+
+.tx-pill {
+  border-radius: 999px;
+  height: 9vmin;
+  position: absolute;
+  transform: translateX(400vmax);
+  width: 26vmin;
+  will-change: transform;
+}
+
+.tx-pill--1 {
+  background: var(--lilac);
+  left: 30%;
+  top: 18%;
+}
+
+.tx-pill--2 {
+  background: var(--mint);
+  height: 7vmin;
+  left: 52%;
+  top: 58%;
+  width: 20vmin;
+}
+
+.tx-pill--3 {
+  background: var(--peach);
+  height: 6vmin;
+  left: 18%;
+  top: 80%;
+  width: 16vmin;
+}
+
+.tx-cut {
+  background: #fff;
+  inset: 0;
+  opacity: 0;
+  position: absolute;
+}
+
+.tx-cut-glow {
+  background: radial-gradient(circle, #fff 0%, rgba(255, 245, 235, 0.9) 22%, rgba(201, 184, 255, 0.45) 46%, transparent 68%);
+  border-radius: 50%;
+  height: 160vmax;
+  left: 50%;
+  opacity: 0;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0.2);
+  width: 160vmax;
+}
+
+/* ═════════════ pauses & reduced motion ═════════════ */
+
+html.tx-running
+  :is(
+    .sticker,
+    .pill--holo,
+    .holo,
+    .brand-tag,
+    .btn-primary,
+    .topbar,
+    .idle-glow,
+    .main-glow,
+    .grain-layer,
+    .idle-arch,
+    .idle-arch-photo,
+    .idle-arch-cutout,
+    .idle-arch-glow,
+    .photo-card
+  ),
+html.tx-running .topbar::after,
+html.tx-running .strip::after,
+html.tx-running .photo-card::before {
+  animation-play-state: paused !important;
+}
+
+.reduced :is(.sticker, .pill--holo, .holo, .brand-tag, .btn-primary, .sticker--cobalt),
+.reduced .topbar::after,
+.reduced .strip::after,
+.reduced :is(.idle-glow, .main-glow, .grain-layer, .idle-arch, .idle-arch-photo, .idle-arch-glow),
+.reduced .photo-card.selected::before,
+.reduced .live.charging,
+.reduced [data-picked],
+.reduced [data-foil-now] {
+  animation: none !important;
+}
+
+.reduced .idle-arch-cutout {
+  animation: fade-in 220ms ease both !important;
+}
+
+.reduced .grain-layer {
+  display: none;
+}

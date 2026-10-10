@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
- * The three block page transitions of the kiosk. Each variant covers the screen,
- * calls `swap()` while everything is hidden (the page underneath changes there),
- * then reveals the new page:
- *   - capsule: "Capsule Rush", default for every step forward (and reversed, lighter, for back)
+ * The page transitions of the kiosk. Each variant covers the screen, calls `swap()` while
+ * everything is hidden (the page underneath changes there), then reveals the new page:
+ *   - wipe:    "Holo Wipe", default for the ordinary steps: a wide diagonal foil band sweeps across
+ *   - flash:   "Flash Cut", the big moments (start shooting, print done): white flash, glow, thick grain
+ *   - capsule: "Capsule Rush", the first, bouncier style (kept, not used by default any more)
  *   - bubble:  "Bubble Pop", success moments (payment approved, PIN ok, print done)
  *   - shutter: "Shutter Blocks", only around the capture screen
  *   - fade:    used for everything when reduced motion is on
@@ -27,6 +28,10 @@ const blocksTop = ref<HTMLElement[]>([]);
 const blocksBottom = ref<HTMLElement[]>([]);
 const flashEl = ref<HTMLElement | null>(null);
 const fadeEl = ref<HTMLElement | null>(null);
+const wipeEl = ref<HTMLElement | null>(null);
+const pills = ref<HTMLElement[]>([]);
+const cutEl = ref<HTMLElement | null>(null);
+const cutGlow = ref<HTMLElement | null>(null);
 
 // relative capsule sizes so the rush does not look mechanical
 const SIZE_VARIANCE = [0.2, 0.9, 0.45, 1, 0.3, 0.75];
@@ -42,13 +47,122 @@ async function run(body: () => Promise<void>): Promise<boolean> {
   if (running) return false;
   running = true;
   active.value = true;
+  // ambient loops pause while the screen changes, so the transition never stutters
+  document.documentElement.classList.add("tx-running");
   try {
     await body();
   } finally {
     active.value = false;
     running = false;
+    document.documentElement.classList.remove("tx-running");
   }
   return true;
+}
+
+/** Holo Wipe: a wide diagonal foil band sweeps across; the old page goes behind it, the new one comes out. */
+async function wipe(swap: Swap, dir: 1 | -1 = 1): Promise<boolean> {
+  if (props.reduced) return fade(swap);
+  return run(async () => {
+    const band = wipeEl.value;
+    if (!band) return void (await swap());
+    reset([band, ...pills.value]);
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const width = w * 1.5 + h * 0.4;
+    Object.assign(band.style, { width: `${width}px`, left: `${(w - width) / 2}px` });
+    const off = (w + width) / 2 + h * 0.4;
+    const easeCover = "cubic-bezier(0.55, 0, 0.35, 1)";
+
+    sfx.whoosh();
+    const cover = [
+      band.animate(
+        [
+          { transform: `translateX(${dir * off}px) skewX(-18deg)` },
+          { transform: "translateX(0) skewX(-18deg)" },
+        ],
+        {
+          duration: 300,
+          easing: easeCover,
+          fill: "both",
+        },
+      ),
+      ...pills.value.map((pill, i) =>
+        pill.animate(
+          [
+            {
+              transform: `translateX(${dir * (off + 160 + i * 90)}px) rotate(${-20 + i * 14}deg)`,
+              opacity: 1,
+            },
+            { transform: `translateX(${dir * (40 + i * 30)}px) rotate(${-10 + i * 12}deg)`, opacity: 1 },
+          ],
+          { duration: 330, delay: 40 + i * 30, easing: easeCover, fill: "both" },
+        ),
+      ),
+    ];
+    await finished([cover[0]]);
+    await swap();
+    await sleep(40);
+    await finished([
+      band.animate(
+        [
+          { transform: "translateX(0) skewX(-18deg)" },
+          { transform: `translateX(${-dir * off}px) skewX(-18deg)` },
+        ],
+        {
+          duration: 320,
+          easing: easeCover,
+          fill: "both",
+        },
+      ),
+      ...pills.value.map((pill, i) =>
+        pill.animate(
+          [
+            { transform: `translateX(${dir * (40 + i * 30)}px) rotate(${-10 + i * 12}deg)`, opacity: 1 },
+            {
+              transform: `translateX(${-dir * (off + 220 + i * 120)}px) rotate(${10 + i * 10}deg)`,
+              opacity: 0.6,
+            },
+          ],
+          { duration: 380, delay: i * 35, easing: easeCover, fill: "both" },
+        ),
+      ),
+    ]);
+    cover.forEach((animation) => animation.cancel());
+  });
+}
+
+/** Flash Cut: a white flash of ~80 ms, light spreads from the middle, the new page shows with thick grain. */
+async function flash(swap: Swap): Promise<boolean> {
+  if (props.reduced) return fade(swap);
+  return run(async () => {
+    const white = cutEl.value;
+    const glow = cutGlow.value;
+    if (!white || !glow) return void (await swap());
+    reset([white, glow]);
+    sfx.flash();
+    await finished([
+      white.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 40, easing: "linear", fill: "forwards" }),
+    ]);
+    await swap();
+    await sleep(80);
+    const app = document.querySelector(".app");
+    app?.classList.add("grain-burst");
+    window.setTimeout(() => app?.classList.remove("grain-burst"), 300);
+    await finished([
+      white.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: 260,
+        easing: "ease-out",
+        fill: "forwards",
+      }),
+      glow.animate(
+        [
+          { opacity: 0.95, transform: "translate(-50%, -50%) scale(0.2)" },
+          { opacity: 0, transform: "translate(-50%, -50%) scale(1.6)" },
+        ],
+        { duration: 520, easing: "cubic-bezier(0.2, 0.7, 0.3, 1)", fill: "forwards" },
+      ),
+    ]);
+  });
 }
 
 async function fade(swap: Swap): Promise<boolean> {
@@ -278,7 +392,7 @@ function isRunning(): boolean {
   return running;
 }
 
-defineExpose({ capsule, bubble, shutter, fade, isRunning });
+defineExpose({ wipe, flash, capsule, bubble, shutter, fade, isRunning });
 </script>
 
 <template>
@@ -312,6 +426,10 @@ defineExpose({ capsule, bubble, shutter, fade, isRunning });
         <div ref="blocksBottom" class="tx-block tx-block--bottom" :class="{ cobalt: i % 2 === 1 }" />
       </div>
     </div>
+    <div ref="wipeEl" class="tx-wipe" />
+    <div v-for="i in 3" :key="`p${i}`" ref="pills" class="tx-pill" :class="`tx-pill--${i}`" />
+    <div ref="cutEl" class="tx-cut" />
+    <div ref="cutGlow" class="tx-cut-glow" />
     <div ref="flashEl" class="tx-flash" />
     <div ref="fadeEl" class="tx-fade" />
   </div>

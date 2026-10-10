@@ -31,6 +31,12 @@ interface Form {
   loyalty_stamps_for_reward: number;
   support_hotline: string;
   social_handle: string;
+  fx_foil_sweep: boolean;
+  fx_holo_flow: boolean;
+  fx_glow_breathe: boolean;
+  fx_film_grain: boolean;
+  fx_light_leak: boolean;
+  fx_parallax: boolean;
 }
 
 interface Voucher {
@@ -98,6 +104,12 @@ const LABELS: Record<string, string> = {
   loyalty_stamps_for_reward: "số lần để được tặng",
   support_hotline: "hotline",
   social_handle: "trang mạng xã hội",
+  fx_foil_sweep: "vệt foil",
+  fx_holo_flow: "viền holo chảy",
+  fx_glow_breathe: "quầng sáng thở",
+  fx_film_grain: "hạt film",
+  fx_light_leak: "vệt sáng film",
+  fx_parallax: "chiều sâu màn chờ",
 };
 
 const TIMINGS = [
@@ -135,6 +147,35 @@ const TIMINGS = [
     min: 2,
     max: 30,
     help: "Sau đó kiosk tự quay về màn chờ.",
+  },
+] as const;
+
+const EFFECTS = [
+  {
+    key: "fx_foil_sweep",
+    label: "Vệt foil quét sáng",
+    help: "Chạy qua nhãn holo và nút chính mỗi 4–6 giây.",
+  },
+  {
+    key: "fx_holo_flow",
+    label: "Viền holo chảy màu",
+    help: "Màu cầu vồng trong viền và đường dưới thanh tiêu đề trôi chậm.",
+  },
+  {
+    key: "fx_glow_breathe",
+    label: "Quầng sáng thở",
+    help: "Quầng sáng sau vật chính phồng nhẹ, loé lên khi bấm nút chính.",
+  },
+  { key: "fx_film_grain", label: "Hạt film chạy", help: "Lớp hạt như film thật. Tắt nếu máy kiosk bị giật." },
+  {
+    key: "fx_light_leak",
+    label: "Vệt sáng film trôi",
+    help: "Vệt sáng cam hồng trên ảnh mẫu dịch chậm dọc mép ảnh.",
+  },
+  {
+    key: "fx_parallax",
+    label: "Chiều sâu màn chờ",
+    help: "Khung và người lơ lửng lệch nhau, người như nhô ra trước khung.",
   },
 ] as const;
 
@@ -185,6 +226,12 @@ const form = reactive<Form>({
   loyalty_stamps_for_reward: 5,
   support_hotline: "",
   social_handle: "",
+  fx_foil_sweep: true,
+  fx_holo_flow: true,
+  fx_glow_breathe: true,
+  fx_film_grain: true,
+  fx_light_leak: true,
+  fx_parallax: true,
 });
 const saving = ref(false);
 
@@ -235,6 +282,12 @@ function fromConfig(cfg: AppConfig): Form {
     loyalty_stamps_for_reward: fb.loyalty_stamps_for_reward ?? 5,
     support_hotline: fb.support_hotline ?? "",
     social_handle: fb.social_handle ?? "",
+    fx_foil_sweep: fb.fx_foil_sweep ?? true,
+    fx_holo_flow: fb.fx_holo_flow ?? true,
+    fx_glow_breathe: fb.fx_glow_breathe ?? true,
+    fx_film_grain: fb.fx_film_grain ?? true,
+    fx_light_leak: fb.fx_light_leak ?? true,
+    fx_parallax: fb.fx_parallax ?? true,
   };
 }
 
@@ -474,6 +527,20 @@ onMounted(() => void load());
             <span class="unit">ngày</span>
           </span>
         </label>
+      </div>
+
+      <div class="card" style="gap: 0">
+        <h2 class="h2" style="margin-bottom: 8px">Hiệu ứng nền</h2>
+        <label v-for="item in EFFECTS" :key="item.key" class="toggle-row">
+          <span style="flex: 1">
+            <span style="display: block; font-weight: 700">{{ item.label }}</span>
+            <span class="muted" style="display: block; font-size: 13px">{{ item.help }}</span>
+          </span>
+          <input v-model="form[item.key]" type="checkbox" class="switch" />
+        </label>
+        <span class="muted" style="font-size: 13px; padding-top: 10px"
+          >"Giảm hiệu ứng" ở trên tắt toàn bộ cùng lúc.</span
+        >
       </div>
 
       <div class="card">

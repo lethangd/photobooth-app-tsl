@@ -1189,16 +1189,16 @@ h1 {
   display: block;
   height: auto;
   position: absolute;
-  width: 47rem;
+  width: 49rem; /* 2 rem wider than the opening: room for the parallax float */
 }
 
 .idle-arch-photo {
-  left: 0;
+  left: -1rem;
   top: -20rem;
 }
 
 .idle-arch-cutout {
-  left: 1rem;
+  left: 0;
   pointer-events: none;
   top: -19rem;
 }

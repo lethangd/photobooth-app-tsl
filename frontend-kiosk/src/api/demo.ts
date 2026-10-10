@@ -135,6 +135,7 @@ export async function getConfig(): Promise<KioskConfig> {
     loyalty_stamps_for_reward: 5,
     support_hotline: "",
     has_vouchers: true,
+    effects: { foil: true, holo: true, glow: true, grain: true, leak: true, parallax: true },
     filters: FILTERS,
     frame_types: [2, 3, 4].map((slots, index) => ({
       slot_count: slots,

@@ -48,11 +48,13 @@ import NoticeDialog from "@/components/NoticeDialog.vue";
 import PhotoStrip from "@/components/PhotoStrip.vue";
 import PinDialog from "@/components/PinDialog.vue";
 import Star from "@/components/Star.vue";
+import RollNumber from "@/components/RollNumber.vue";
 import StickerEditor from "@/components/StickerEditor.vue";
 import TopBar from "@/components/TopBar.vue";
 import TransitionOverlay from "@/components/TransitionOverlay.vue";
 import VoucherDialog from "@/components/VoucherDialog.vue";
 import { browserCameraSupported, snapshot, startBrowserCamera, stopBrowserCamera } from "@/lib/browserCamera";
+import { grainTile } from "@/lib/grain";
 import { countUp, flyImage, sleep } from "@/lib/motion";
 import * as sfx from "@/lib/sfx";
 import { useSessionStore } from "@/stores/session";
@@ -73,7 +75,7 @@ type Screen =
   | "deviceError"
   | "qr"
   | "thankYou";
-type Move = "forward" | "back" | "bubble" | "shutter" | "instant";
+type Move = "forward" | "back" | "bubble" | "flash" | "shutter" | "instant";
 type Point = { x: number; y: number };
 
 const STEP: Partial<Record<Screen, number>> = {
@@ -111,6 +113,20 @@ const overlay = ref<InstanceType<typeof TransitionOverlay> | null>(null);
 
 const screen = ref<Screen>("loading");
 const reduced = ref(false);
+const effectClasses = computed(() => {
+  const fx = store.config?.effects;
+  if (reduced.value || !fx) return [];
+  return Object.entries({
+    foil: fx.foil,
+    holo: fx.holo,
+    glow: fx.glow,
+    grain: fx.grain,
+    leak: fx.leak,
+    parallax: fx.parallax,
+  })
+    .filter(([, on]) => on)
+    .map(([name]) => `fx-${name}`);
+});
 
 // timers of the current screen; cleared on every navigation
 const timers: number[] = [];
@@ -146,6 +162,8 @@ const countdown = ref(0);
 const captureCaption = ref("Sẵn sàng chưa?");
 const captureRunId = ref(0);
 const flashOn = ref(false);
+const charging = ref(false);
+const freezeUrl = ref("");
 const landed = ref(new Set<string>());
 const liveFrame = ref<HTMLElement | null>(null);
 const shotSlots = ref<HTMLElement[]>([]);
@@ -155,7 +173,6 @@ const flying = ref(new Set<string>());
 const nopeId = ref("");
 // retake
 const retakeCount = ref(1);
-const retakeTotal = ref(0);
 // design & decorate
 const designPreviewUrl = ref("");
 const sheenNonce = ref(0);
@@ -188,6 +205,7 @@ const errorTitle = ref("");
 const errorText = ref("");
 const retryAction = ref<(() => void) | null>(null);
 const taps = ref<{ id: number; x: number; y: number }[]>([]);
+const printPhase = ref<"" | "printing" | "printed">("");
 let tapId = 0;
 const urlCache = new Map<string, string>();
 const stopCounters: (() => void)[] = [];
@@ -364,9 +382,10 @@ async function navigate(
     swap();
     return true;
   }
+  // Bubble Pop for success, Flash Cut for shooting and print, Holo Wipe for every ordinary step
   if (move === "bubble") return layer.bubble(swap, origin, check);
-  if (move === "shutter") return layer.shutter(swap);
-  return layer.capsule(swap, move === "back" ? -1 : 1);
+  if (move === "flash" || move === "shutter") return layer.flash(swap);
+  return layer.wipe(swap, move === "back" ? -1 : 1);
 }
 
 // ───────────── session ─────────────
@@ -724,7 +743,7 @@ async function armCamera(): Promise<void> {
 async function startFromPrepare(): Promise<void> {
   if (screen.value !== "prepare" || errorTitle.value) return;
   captureCaption.value = "Tạo dáng nào!";
-  const ok = await navigate("capture", "shutter");
+  const ok = await navigate("capture", "flash");
   if (!ok) return;
   if (cameraSource.value === "browser") {
     await nextTick();
@@ -752,9 +771,13 @@ async function runCountdown(seconds: number, runId: number): Promise<boolean> {
     if (captureRunId.value !== runId) return false;
     countdown.value = remaining;
     if (remaining <= 2) captureCaption.value = "Cười thật tươi!";
+    // last second: the frame races holo and the glow pulls in, like a flash charging
+    charging.value = remaining === 1;
+    if (remaining === 1) sfx.charge();
     await sleep(1000);
   }
   countdown.value = 0;
+  charging.value = false;
   return captureRunId.value === runId;
 }
 
@@ -770,11 +793,16 @@ async function startShooting(): Promise<void> {
       currentShot.value = store.captures.length + 1;
       if (!(await runCountdown(poseSeconds.value, runId))) return;
       triggerFlash();
+      sfx.flash();
       sfx.shutter();
       captureCaption.value = "Bắt được rồi!";
       const shot = await takePhoto();
       if (captureRunId.value !== runId) return;
       store.addCapture(shot);
+      // the shot freezes with film grain for a beat, then shrinks into its thumbnail
+      freezeUrl.value = stableUrl(shot.preview_url);
+      await sleep(reduced.value ? 0 : 320);
+      freezeUrl.value = "";
       await nextTick();
       const slot = shotSlots.value[store.captures.length - 1];
       if (liveFrame.value && slot) {
@@ -792,9 +820,11 @@ async function startShooting(): Promise<void> {
     }
     captureMode.value = "done";
     await sleep(400);
-    await openPhotoSelect("shutter");
+    await openPhotoSelect("forward");
   } catch (error) {
     captureMode.value = "ready";
+    charging.value = false;
+    freezeUrl.value = "";
     showError("Camera chưa phản hồi", error, () => void startShooting());
   }
 }
@@ -882,7 +912,6 @@ function autoSelectAndContinue(): void {
 
 async function openRetake(): Promise<void> {
   retakeCount.value = 1;
-  retakeTotal.value = retakePrice.value;
   pinPurpose.value = "retake";
   try {
     await openPayment("retake", 1);
@@ -908,9 +937,7 @@ async function leaveRetake(): Promise<void> {
 async function chooseRetake(count: number): Promise<void> {
   if (count === retakeCount.value) return;
   sfx.pop();
-  const from = retakeTotal.value;
   retakeCount.value = count;
-  stopCounters.push(countUp(from, count * retakePrice.value, 360, (value) => (retakeTotal.value = value)));
   try {
     await openPayment("retake", count);
     startPaymentWatch();
@@ -1110,10 +1137,14 @@ async function printFinal(event?: MouseEvent): Promise<void> {
     if (event) return void openCopiesPayment();
     copies.value = 1;
   }
-  const origin =
-    centerOf(event?.currentTarget as Element | undefined) ?? centerOf(document.querySelector(".print-btn"));
   clearTimers();
   printing.value = true;
+  // the strip comes out of the printer slot and develops like an instant photo
+  const paper = document.querySelector<HTMLElement>(".res-paper");
+  paper?.parentElement?.style.setProperty("--slot-top", `${paper.offsetTop}px`);
+  printPhase.value = "printing";
+  const printSeconds = Math.max(2.6, store.config?.printing_mock_seconds ?? 3);
+  sfx.printer(printSeconds);
 
   try {
     const [result] = await Promise.all([
@@ -1128,7 +1159,7 @@ async function printFinal(event?: MouseEvent): Promise<void> {
         copies: copies.value,
         overlay_png: overlayPng.value,
       }),
-      sleep((store.config?.printing_mock_seconds ?? 3) * 1000),
+      sleep(printSeconds * 1000),
     ]);
     store.setFinalResult(result);
     lastRender.value = result;
@@ -1136,11 +1167,17 @@ async function printFinal(event?: MouseEvent): Promise<void> {
       result.cloud_url ?? `${window.location.origin}${result.download_url || result.gallery_url}`;
     resultQrUrl.value = await makeQr(downloadUrl);
     if (result.print && !result.print.ok) {
+      printPhase.value = "";
       await openDeviceError(result.print);
       return;
     }
-    await goToQr(origin);
+    // done: one foil pass over the print, then the Flash Cut
+    printPhase.value = "printed";
+    sfx.chime();
+    await sleep(reduced.value ? 0 : 750);
+    await goToQr("flash");
   } catch (error) {
+    printPhase.value = "";
     showError("Chưa in được ảnh", error, () => void printFinal());
   } finally {
     printing.value = false;
@@ -1198,8 +1235,9 @@ function callStaffForPrinter(): void {
 
 // ───────────── 08 QR → 09 thanks ─────────────
 
-async function goToQr(origin?: Point): Promise<void> {
-  const ok = await navigate("qr", origin ? "bubble" : "forward", origin, Boolean(origin));
+async function goToQr(move: Move = "forward"): Promise<void> {
+  const ok = await navigate("qr", move);
+  printPhase.value = "";
   if (ok) armQrTimer();
 }
 
@@ -1246,10 +1284,36 @@ function onPointerDown(event: PointerEvent): void {
     return;
   }
   const target = event.target as HTMLElement;
-  if (target.closest("button, a, input, label")) return;
+  // a holo ring and a small star wherever the guest touches
   const id = (tapId += 1);
   taps.value = [...taps.value, { id, x: event.clientX, y: event.clientY }];
-  window.setTimeout(() => (taps.value = taps.value.filter((tap) => tap.id !== id)), 650);
+  window.setTimeout(() => (taps.value = taps.value.filter((tap) => tap.id !== id)), 700);
+  if (reduced.value) return;
+
+  // touched foil surfaces run their sweep once, fast
+  const foil = target.closest<HTMLElement>(".btn-primary, .sticker, .pill--holo, .holo");
+  if (foil) restartMark(foil, "foilNow", 560);
+  // choices (package, colour, retake count, posing time, frame): a foil pass and a small bounce
+  const choice = target.closest<HTMLElement>(
+    ".package-card, .filter-card, .retake-pick, .pose-pick, .frame-pick",
+  );
+  if (choice) restartMark(choice, "picked", 640);
+  // the main button fires the glow behind the main object like a flash
+  if (target.closest(".btn-primary, .idle")) {
+    const app = document.querySelector(".app");
+    app?.classList.remove("glow-flash");
+    void (app as HTMLElement | null)?.offsetWidth;
+    app?.classList.add("glow-flash");
+    window.setTimeout(() => app?.classList.remove("glow-flash"), 540);
+  }
+}
+
+/** Set a data attribute that starts a one-shot CSS animation (Vue never touches data-* it does not own). */
+function restartMark(el: HTMLElement, key: "foilNow" | "picked", ms: number): void {
+  delete el.dataset[key];
+  void el.offsetWidth;
+  el.dataset[key] = "";
+  window.setTimeout(() => delete el.dataset[key], ms);
 }
 
 function retryError(): void {
@@ -1259,6 +1323,7 @@ function retryError(): void {
 }
 
 onMounted(async () => {
+  document.documentElement.style.setProperty("--grain-tile", `url(${grainTile()})`);
   try {
     const config = await store.loadConfig();
     reduced.value = config.reduce_motion;
@@ -1275,7 +1340,13 @@ onBeforeUnmount(() => clearTimers());
 </script>
 
 <template>
-  <div class="app" :class="{ reduced }" :data-screen="screen" @pointerdown.capture="onPointerDown">
+  <div
+    class="app"
+    :class="[{ reduced }, effectClasses]"
+    :data-screen="screen"
+    @pointerdown.capture="onPointerDown"
+  >
+    <div v-if="effectClasses.includes('fx-grain')" class="grain-layer" aria-hidden="true" />
     <TopBar
       v-if="screen !== 'thankYou' && screen !== 'loading'"
       :step="stepIndex"
@@ -1533,7 +1604,9 @@ onBeforeUnmount(() => clearTimers());
           <h1 class="display pay-amount">
             <span class="ln"
               ><span class="e-line" style="--i: 1"
-                >{{ money(shownAmount).slice(0, -1) }}<span class="accent">đ</span></span
+                ><span :key="payment?.amount" class="glitch"
+                  >{{ money(shownAmount).slice(0, -1) }}<span class="accent">đ</span></span
+                ></span
               ></span
             >
           </h1>
@@ -1576,6 +1649,7 @@ onBeforeUnmount(() => clearTimers());
         </section>
 
         <section class="qr-side">
+          <span class="main-glow" />
           <PhotoStrip class="e-card qr-side-strip" style="--i: 3; --rot: 10deg" :photos="[s1, s3, s4]" />
           <div class="qr-card chrome-ring e-card" style="--i: 2; --rot: 0deg">
             <span class="sheen" />
@@ -1748,8 +1822,10 @@ onBeforeUnmount(() => clearTimers());
             "
           />
         </div>
-        <div class="live chrome-ring e-card" style="--i: 0; --rot: 0deg">
+        <div class="live chrome-ring e-card" :class="{ charging }" style="--i: 0; --rot: 0deg">
           <div ref="liveFrame" class="live-inner">
+            <img v-if="freezeUrl" class="freeze-shot" :src="freezeUrl" alt="" />
+            <span v-if="freezeUrl" class="freeze-grain" />
             <video
               v-if="cameraSource === 'browser'"
               ref="browserVideo"
@@ -1835,7 +1911,11 @@ onBeforeUnmount(() => clearTimers());
               <span class="sel-count-of">/ {{ store.slotCount }}</span>
             </div>
           </div>
-          <div class="photo-grid" :style="{ '--cols': photoColumns, '--rows': photoRows }">
+          <div
+            class="photo-grid"
+            :class="{ 'has-pick': store.selectedCaptureIds.length > 0 }"
+            :style="{ '--cols': photoColumns, '--rows': photoRows }"
+          >
             <button
               v-for="(item, index) in store.captures"
               :key="item.id"
@@ -1940,7 +2020,9 @@ onBeforeUnmount(() => clearTimers());
           </div>
           <div class="retake-total e-pop" style="--i: 6">
             <span class="mono">{{ retakeCount }} lần × {{ money(retakePrice) }} =</span>
-            <span class="display accent retake-sum">{{ money(retakeTotal) }}</span>
+            <span class="display accent retake-sum"
+              ><RollNumber :value="retakeCount * retakePrice" suffix="đ"
+            /></span>
           </div>
           <div class="waiting e-pop" style="--i: 7">
             <i class="waiting-dot" />
@@ -1965,6 +2047,7 @@ onBeforeUnmount(() => clearTimers());
           </div>
         </section>
         <section class="qr-side">
+          <span class="main-glow" />
           <div class="retake-photo chrome-ring e-card" style="--i: 3; --rot: -10deg">
             <img v-if="store.captures[0]" :src="stableUrl(store.captures[0].preview_url)" alt="" />
           </div>
@@ -2126,7 +2209,9 @@ onBeforeUnmount(() => clearTimers());
             style="--i: 2; position: absolute; left: 47rem; top: 4rem; width: 10rem; height: 10rem"
           />
         </div>
-        <section class="res-print">
+        <section class="res-print" :class="printPhase">
+          <span class="main-glow" />
+          <span v-if="printPhase" class="print-slot" />
           <div class="res-paper print-out">
             <img v-if="finalPreviewUrl" :src="finalPreviewUrl" alt="Ảnh hoàn thiện" />
             <Star class="strip-star" />
@@ -2171,7 +2256,7 @@ onBeforeUnmount(() => clearTimers());
               >
                 −
               </button>
-              <span :key="copies" class="display step-value">{{ copies }}</span>
+              <span :key="copies" class="display step-value glitch">{{ copies }}</span>
               <button
                 class="display step-btn step-btn--plus"
                 type="button"
@@ -2184,8 +2269,9 @@ onBeforeUnmount(() => clearTimers());
             </div>
             <span class="copies-note">
               <template v-if="copies > 1"
-                >Bản thêm <span class="accent">+{{ money(extraCopyPrice * (copies - 1)) }}</span> · cần thanh
-                toán thêm</template
+                >Bản thêm
+                <span :key="copies" class="accent glitch">+{{ money(extraCopyPrice * (copies - 1)) }}</span> ·
+                cần thanh toán thêm</template
               >
               <template v-else>Gói đã gồm 1 bản in</template>
             </span>
@@ -2365,6 +2451,7 @@ onBeforeUnmount(() => clearTimers());
           </div>
         </section>
         <section class="qr-side">
+          <span class="main-glow" />
           <div class="qr-polaroid chrome-ring drop-in">
             <img
               v-if="store.selectedCaptures[0]"
@@ -2559,7 +2646,9 @@ onBeforeUnmount(() => clearTimers());
         </div>
         <div>
           <span>Còn thiếu</span
-          ><span class="display accent pay-short">{{ money(payment?.remaining ?? 0) }}</span>
+          ><span :key="payment?.remaining" class="display accent pay-short glitch">{{
+            money(payment?.remaining ?? 0)
+          }}</span>
         </div>
       </div>
       <div class="pay-hint">Quét mã bên cạnh để chuyển nốt phần còn thiếu.</div>
@@ -2621,7 +2710,9 @@ onBeforeUnmount(() => clearTimers());
       <div class="pay-lines">
         <div>
           <span>{{ copies - 1 }} bản × {{ money(extraCopyPrice) }}</span
-          ><span class="display accent pay-short">{{ money(payment?.remaining ?? 0) }}</span>
+          ><span :key="payment?.remaining" class="display accent pay-short glitch">{{
+            money(payment?.remaining ?? 0)
+          }}</span>
         </div>
       </div>
       <template #actions>
@@ -2689,6 +2780,12 @@ onBeforeUnmount(() => clearTimers());
       :style="{ left: `${tap.x}px`, top: `${tap.y}px` }"
       ><Star
     /></span>
+    <span
+      v-for="tap in taps"
+      :key="`r${tap.id}`"
+      class="tap-ring"
+      :style="{ left: `${tap.x}px`, top: `${tap.y}px` }"
+    />
 
     <div v-if="DEMO" class="demo-badge mono">Bản demo · PIN nhân viên 1234</div>
 
