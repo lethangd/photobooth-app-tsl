@@ -16,6 +16,9 @@ import {
   renderTimelapse,
   renewPayment,
   sendFeedback,
+  sendRecordingFrame,
+  startRecording,
+  stopRecording,
   serverCameraStatus,
   templatePreviewUrl,
   uploadCapture,
@@ -185,6 +188,10 @@ const stillThereLeft = ref(0);
 const finalPreviewUrl = ref("");
 const timelapseUrl = ref("");
 const timelapseId = ref<string | null>(null);
+// the timelapse render in flight and the colour filter it was made with
+let timelapsePending: Promise<void> | null = null;
+let timelapseFilter = "";
+let recordingTimer = 0;
 const printing = ref(false);
 const autoPrintAt = ref(0);
 const resultQrUrl = ref("");
@@ -399,6 +406,9 @@ function clearSessionState(): void {
   finalPreviewUrl.value = "";
   timelapseUrl.value = "";
   timelapseId.value = null;
+  timelapsePending = null;
+  timelapseFilter = "";
+  stopFrameUpload();
   urlCache.clear();
   landed.value = new Set();
   flying.value = new Set();
@@ -749,6 +759,7 @@ async function startFromPrepare(): Promise<void> {
     await nextTick();
     if (browserVideo.value) await startBrowserCamera(browserVideo.value).catch(() => undefined);
   }
+  void beginRecording();
   await startShooting();
 }
 
@@ -819,12 +830,14 @@ async function startShooting(): Promise<void> {
       await sleep(350);
     }
     captureMode.value = "done";
+    void endRecording();
     await sleep(400);
     await openPhotoSelect("forward");
   } catch (error) {
     captureMode.value = "ready";
     charging.value = false;
     freezeUrl.value = "";
+    stopFrameUpload();
     showError("Camera chưa phản hồi", error, () => void startShooting());
   }
 }
@@ -1057,19 +1070,105 @@ async function composeFinalPreview(): Promise<string> {
 
 // ───────────── 07 result & print ─────────────
 
-async function startTimelapseRender(): Promise<void> {
-  if (!store.digitalDeliveryEnabled || store.captures.length < 2) return;
+/**
+ * Build the timelapse: the recorded footage of the shooting when there is some (the server falls back
+ * to a slideshow of the photos otherwise). Renders run one at a time; a new filter re-renders.
+ */
+function startTimelapseRender(): Promise<void> {
+  if (!store.digitalDeliveryEnabled || store.captures.length < 2) return Promise.resolve();
+  if (timelapsePending) return timelapsePending;
+  const filterId = store.filterId;
+  const sessionId = store.sessionId;
+  timelapsePending = (async () => {
+    try {
+      const result = await renderTimelapse({
+        capture_ids: store.captures.map((item) => item.id),
+        filter_id: filterId,
+        session_id: sessionId,
+      });
+      if (store.sessionId !== sessionId) return;
+      timelapseId.value = result.id;
+      timelapseFilter = filterId;
+      timelapseUrl.value = stableUrl(result.video_url);
+    } catch (error) {
+      console.warn(error);
+    } finally {
+      timelapsePending = null;
+    }
+  })();
+  return timelapsePending;
+}
+
+/** The clip was rendered right after shooting; redo it once that render is done if the guest picked a colour filter. */
+async function ensureTimelapse(): Promise<void> {
+  if (timelapsePending) await timelapsePending;
+  if (timelapseId.value && timelapseFilter === store.filterId) return;
+  timelapseId.value = null;
+  timelapseUrl.value = "";
+  await startTimelapseRender();
+}
+
+// ───── recording the shooting with the same camera ─────
+
+async function beginRecording(): Promise<void> {
+  if (!store.digitalDeliveryEnabled || cameraSource.value === "samples") return;
+  const source = cameraSource.value === "browser" ? "browser" : "server";
   try {
-    const result = await renderTimelapse({
-      capture_ids: store.captures.map((item) => item.id),
-      filter_id: store.filterId,
-      session_id: store.sessionId,
-    });
-    timelapseId.value = result.id;
-    timelapseUrl.value = stableUrl(result.video_url);
+    await startRecording(store.sessionId, source);
+  } catch (error) {
+    console.warn("timelapse recording unavailable", error);
+    return;
+  }
+  if (source === "browser") startFrameUpload();
+}
+
+/** Browser camera: send 4 small frames per second of the live video to the recorder. */
+function startFrameUpload(): void {
+  stopFrameUpload();
+  const canvas = document.createElement("canvas");
+  const sessionId = store.sessionId;
+  let busy = false;
+  recordingTimer = window.setInterval(() => {
+    const video = browserVideo.value;
+    if (busy || !video || !video.videoWidth) return;
+    const scale = Math.min(1, 960 / video.videoWidth);
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    // mirrored like the selfie preview and the photos
+    ctx.setTransform(-1, 0, 0, 1, canvas.width, 0);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    busy = true;
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return void (busy = false);
+        void sendRecordingFrame(sessionId, blob)
+          .catch(() => undefined)
+          .finally(() => (busy = false));
+      },
+      "image/jpeg",
+      0.72,
+    );
+  }, 250);
+}
+
+function stopFrameUpload(): void {
+  window.clearInterval(recordingTimer);
+  recordingTimer = 0;
+}
+
+/** Shooting over (or failed): stop recording and render the clip while the guest picks photos. */
+async function endRecording(): Promise<void> {
+  stopFrameUpload();
+  try {
+    await stopRecording(store.sessionId);
   } catch (error) {
     console.warn(error);
   }
+  timelapseId.value = null;
+  timelapseUrl.value = "";
+  void startTimelapseRender();
 }
 
 async function openFinal(move: Move = "forward"): Promise<void> {
@@ -1084,7 +1183,7 @@ async function openFinal(move: Move = "forward"): Promise<void> {
   if (finalPreviewUrl.value.startsWith("blob:") && finalPreviewUrl.value !== designPreviewUrl.value)
     URL.revokeObjectURL(finalPreviewUrl.value);
   finalPreviewUrl.value = preview;
-  if (!timelapseId.value) void startTimelapseRender();
+  void ensureTimelapse();
   armAutoPrint();
 }
 
@@ -1145,6 +1244,9 @@ async function printFinal(event?: MouseEvent): Promise<void> {
   printPhase.value = "printing";
   const printSeconds = Math.max(2.6, store.config?.printing_mock_seconds ?? 3);
   sfx.printer(printSeconds);
+
+  // the digital delivery should carry the clip: wait a little for a render still running
+  if (timelapsePending) await Promise.race([timelapsePending, sleep(25000)]);
 
   try {
     const [result] = await Promise.all([
@@ -1752,7 +1854,8 @@ onBeforeUnmount(() => clearTimers());
               muted
               playsinline
             />
-            <img v-else class="live-img" :src="LIVE_STREAM_URL" alt="Camera xem thử" />
+            <!-- preview shown like a mirror (easier to pose); the photos keep the real orientation -->
+            <img v-else class="live-img live-img--mirror" :src="LIVE_STREAM_URL" alt="Camera xem thử" />
             <span class="prep-guide" />
             <span class="pill mono prep-chip">Đứng trong khung nét đứt</span>
           </div>
@@ -1824,7 +1927,13 @@ onBeforeUnmount(() => clearTimers());
         </div>
         <div class="live chrome-ring e-card" :class="{ charging }" style="--i: 0; --rot: 0deg">
           <div ref="liveFrame" class="live-inner">
-            <img v-if="freezeUrl" class="freeze-shot" :src="freezeUrl" alt="" />
+            <img
+              v-if="freezeUrl"
+              class="freeze-shot"
+              :class="{ 'live-img--mirror': cameraSource !== 'browser' }"
+              :src="freezeUrl"
+              alt=""
+            />
             <span v-if="freezeUrl" class="freeze-grain" />
             <video
               v-if="cameraSource === 'browser'"
@@ -1834,7 +1943,7 @@ onBeforeUnmount(() => clearTimers());
               muted
               playsinline
             />
-            <img v-else class="live-img" :src="LIVE_STREAM_URL" alt="Camera" />
+            <img v-else class="live-img live-img--mirror" :src="LIVE_STREAM_URL" alt="Camera" />
             <span v-if="cameraSource === 'browser'" class="pill mono live-source">Camera thiết bị</span>
             <span class="pill mono live-chip"
               >Kiểu {{ pad2(Math.min(currentShot, captureTarget)) }} / {{ pad2(captureTarget) }}</span

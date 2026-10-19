@@ -30,13 +30,19 @@ from ...services import credentials
 from ...services.framebooth import filters, printer, renderer, templates, timelapse
 from ...services.framebooth import payments as payments_module
 from ...services.framebooth.ledger import ledger
+from ...services.framebooth.letterbox import trim_file
 from ...services.framebooth.models import FrameTemplate
 from ...services.framebooth.payments import SEPAY_WEBHOOK_KEY, PaymentError, add_loyalty_stamp, check_voucher, list_amount, payments
+from ...services.framebooth.recorder import TimelapseEncoderUnavailableError as RecorderEncoderUnavailableError
+from ...services.framebooth.recorder import recorder
 from ...services.framebooth.session_store import session_store
 from ...utils.helper import filename_str_time
 
 router = APIRouter(prefix="/framebooth", tags=["framebooth"])
 logger = logging.getLogger(__name__)
+
+# the timelapse records the live view of the very camera that takes the photos
+recorder.set_grab_source(lambda: container.acquisition_service.wait_for_lores_image())
 
 
 class RenderRequest(BaseModel):
@@ -388,7 +394,9 @@ def api_capture_photo():
     except Exception as exc:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"capture failed: {exc}") from exc
 
-    capture_id, _ = session_store.add_capture(captured)
+    capture_id, stored = session_store.add_capture(captured)
+    trim_file(stored)  # e.g. Sony in photo mode over HDMI: 3:2 picture inside black 16:9 bars
+    recorder.mark_shot(stored)
 
     return {
         "id": str(capture_id),
@@ -423,7 +431,8 @@ async def api_upload_capture(request: Request):
     with tempfile.TemporaryDirectory() as tmp_dir:
         upload = Path(tmp_dir, f"{filename_str_time()}_browser{suffix}")
         upload.write_bytes(body)
-        capture_id, _ = session_store.add_capture(upload)
+        capture_id, stored = session_store.add_capture(upload)
+        recorder.mark_shot(stored)
 
     return {
         "id": str(capture_id),
@@ -439,15 +448,51 @@ def api_get_capture(capture_id: UUID):
     return FileResponse(path)
 
 
+class RecordingStart(BaseModel):
+    session_id: str = Field(min_length=1, max_length=64)
+    source: Literal["server", "browser"] = "server"
+
+
+@router.post("/recording/start")
+def api_recording_start(request: RecordingStart):
+    """Start (or resume after a retake) recording the shooting for the timelapse."""
+    recorder.start(request.session_id, request.source)
+    return {"ok": True}
+
+
+@router.post("/recording/{session_id}/frame", status_code=status.HTTP_204_NO_CONTENT)
+async def api_recording_frame(session_id: str, request: Request):
+    """One JPEG frame of the browser camera (raw body), sent by the kiosk a few times per second."""
+    body = await request.body()
+    if not body or len(body) > 2 * 1024 * 1024:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "empty or too large frame")
+    if not recorder.add_frame(session_id, body):
+        raise HTTPException(status.HTTP_409_CONFLICT, "no recording in progress")
+
+
+@router.post("/recording/{session_id}/stop")
+def api_recording_stop(session_id: str):
+    recording = recorder.stop(session_id)
+    return {"ok": True, "frames": len(recording.frames) if recording else 0, "shots": len(recording.marks) if recording else 0}
+
+
 @router.post("/timelapse")
 def api_render_timelapse(request: TimelapseRequest):
     _require_known_filter(request.filter_id)
-    capture_paths = _resolve_captures(request.capture_ids)
 
-    try:
-        output_path = timelapse.render_timelapse_video(capture_paths, request.filter_id, session_store.timelapse_dir())
-    except timelapse.TimelapseEncoderUnavailableError as exc:
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc)) from exc
+    output_path = None
+    if recorder.has_footage(request.session_id):
+        # real footage of the shooting, recorded from the photo camera
+        try:
+            output_path = recorder.render(request.session_id or "", request.filter_id, session_store.timelapse_dir())
+        except (RecorderEncoderUnavailableError, ValueError) as exc:
+            logger.warning(f"recorded timelapse failed, falling back to a slideshow: {exc}")
+    if output_path is None:
+        capture_paths = _resolve_captures(request.capture_ids)
+        try:
+            output_path = timelapse.render_timelapse_video(capture_paths, request.filter_id, session_store.timelapse_dir())
+        except timelapse.TimelapseEncoderUnavailableError as exc:
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc)) from exc
 
     timelapse_id = UUID(output_path.stem)
     session_store.register_timelapse(timelapse_id, output_path)
@@ -464,7 +509,7 @@ def api_get_timelapse(timelapse_id: UUID):
     path = session_store.get_timelapse(timelapse_id)
     if not path:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "timelapse not found")
-    return FileResponse(path, media_type="video/webm")
+    return FileResponse(path, media_type="video/mp4" if path.suffix == ".mp4" else "video/webm")
 
 
 @router.post("/render")

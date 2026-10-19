@@ -293,6 +293,64 @@ Không cần cấu hình gì: kiosk tự mở webcam khi tới màn chuẩn bị
 
 > Mẹo ánh sáng cho máy ảnh: ISO 200–400, khẩu f/5.6–f/8 (nhóm đông vẫn nét), tốc 1/125 s, cân bằng trắng theo nhiệt màu đèn.
 
+### 8.3. Dùng Sony a6400 (qua card ghi hình HDMI)
+
+> Hướng dẫn riêng, chi tiết hơn (cả cách nối bằng cáp USB, script kiểm tra và bảng sự cố): [KET-NOI-SONY-A6400.md](KET-NOI-SONY-A6400.md).
+
+Trên Windows, phần mềm không điều khiển trực tiếp máy Sony qua USB. Cách nối ổn định là lấy **hình HDMI sạch** của a6400 qua một **card ghi hình HDMI → USB**: Windows nhận máy ảnh như một webcam 1080p chất lượng cao (ống kính và cảm biến của a6400, xoá phông, màu đẹp).
+
+**Cần mua thêm:**
+
+| Thứ | Ghi chú | Giá tham khảo |
+|---|---|---|
+| Card ghi hình HDMI → USB | Loại hỗ trợ 1080p60 (ví dụ Elgato Cam Link 4K, UGREEN/Hagibis HDMI capture USB 3.0) | 0,4–3 triệu |
+| Cáp **micro HDMI** (đầu loại D, cắm vào a6400) ↔ HDMI | Dài 1–2 m, loại tốt | 0,1–0,3 triệu |
+| Pin giả **NP‑FW50** + adapter (ví dụ Sony AC‑PW20 hoặc hàng tương thích) | Máy chạy cả ngày, không hết pin | 0,4–1,5 triệu |
+
+**Cài trên máy ảnh** (menu có thể khác chút theo firmware):
+
+1. Gắn pin giả, cắm cáp micro HDMI vào máy và vào card ghi hình; card cắm vào cổng USB 3.0 của laptop.
+2. **Xoay vòng chế độ sang quay phim (Movie, biểu tượng cuộn phim)**. Bắt buộc: ở chế độ chụp ảnh, máy Sony xuất ảnh 3:2 nằm giữa khung 16:9, hai bên có **viền đen**. Ở chế độ Movie hình đầy khung 16:9. Chỉ dùng để xuất hình, không cần bấm quay. (Nếu quên, phần mềm vẫn tự cắt viền đen khỏi ảnh và video, nhưng ảnh sẽ nhỏ hơn.)
+3. Menu **Setup → HDMI Settings**: *HDMI Resolution* **1080p**, *HDMI Info. Display* **Off** (hình sạch, không có chữ, khung lấy nét).
+4. **Auto Power OFF Temp.** → **High** (máy chịu nhiệt tốt hơn khi chạy liên tục).
+5. Tắt tự tắt màn hình / tiết kiệm pin (*Power Save Start Time* dài nhất).
+6. Lấy nét: **AF‑C** + **Face/Eye AF** để mặt khách luôn nét khi di chuyển.
+7. Phơi sáng theo đèn tiệm (gợi ý ở trên), cân bằng trắng cố định theo đèn.
+
+**Cài trong phần mềm:**
+
+1. Mở `http://127.0.0.1:8000/classic#/admin/config` → **Cameras**.
+2. Thêm backend loại **WebcamPyav**:
+   - *device_identifier*: chọn card ghi hình trong danh sách (thường tên "USB Video", "Cam Link 4K"…).
+   - *cam_resolution_width / height*: **1920 / 1080**.
+3. Đặt backend này làm camera **chụp (stills)** và **xem trước (video)** → Lưu → khởi động lại phần mềm.
+4. Đóng mọi app khác đang mở card ghi hình (OBS, Camera, Zoom…).
+
+**Kiểm tra:**
+
+- `http://127.0.0.1:8000/api/framebooth/camera-status` trả về `"available": true, "virtual": false`.
+- Màn "Sẵn sàng chưa?" của kiosk hiện hình từ a6400 (không có chữ "Camera thiết bị"). Hình xem trước được lật như gương để khách dễ tạo dáng; ảnh in vẫn giữ chiều thật.
+- **Lần đầu dùng máy thật, thử một phiên đầy đủ và xem:**
+  1. Ảnh chụp không có viền đen hai bên, đủ nét, đúng màu.
+  2. Mở `log/` mới nhất: không có dòng "cropped black bars" (nếu có nghĩa là máy đang ở chế độ chụp ảnh, xoay sang Movie).
+  3. Video timelapse trong QR có hình khách tạo dáng, flash ở mỗi lần chụp.
+  4. Để máy chạy 1–2 giờ: hình HDMI không tự tắt, máy không báo quá nhiệt.
+- Nếu phần mềm báo "cannot open camera": trong cấu hình nâng cao, thử đổi *pixel_format* của backend WebcamPyav (`auto` → `yuyv422` hoặc `nv12`, tuỳ card), hoặc giảm *cam_framerate* về 30.
+
+**Lưu ý chất lượng:** ảnh chụp lấy từ hình HDMI nên mỗi tấm là **1920×1080 (khoảng 2 MP)**. Như vậy đủ nét cho ô ảnh của khung 4×6" và dải 2×6", và rất nét trên điện thoại. Ảnh 24 MP đầy đủ của a6400 cần điều khiển qua bộ SDK riêng của Sony, phần mềm hiện chưa hỗ trợ.
+
+### 8.4. Video timelapse của cả buổi chụp
+
+Kiosk tự **quay lại toàn bộ quá trình chụp bằng chính camera đang chụp ảnh**, không cần camera thứ hai.
+
+- Bắt đầu ghi khi khách bấm "Bắt đầu chụp", dừng khi chụp xong (chụp lại thì ghi tiếp vào cùng video). Mỗi giây giữ 4 khung hình.
+- Tua nhanh thành clip khoảng 6–14 giây. Mỗi lần bấm máy có **khung trắng flash** rồi dừng lại trên **đúng ảnh vừa chụp**.
+- Dựng xong trong lúc khách chọn ảnh, dạng **MP4 (H.264)** phát được trên mọi điện thoại. Có màu filter thì dựng lại theo màu khách chọn.
+- Video có trong QR nhận ảnh số, trên trang tải ảnh và trong clip 15 giây đăng mạng xã hội.
+- Áp dụng cho mọi kiểu camera: a6400 qua HDMI, webcam, máy ảnh qua digiCamControl (với máy ảnh, hình xem trước khựng khoảng 0,5–1 giây lúc chụp, video tự lấp bằng khung flash và ảnh chụp).
+- Không ghi được (camera lỗi giữa chừng) thì máy tự dùng kiểu trình chiếu các ảnh đã chụp.
+- Chỉ ghi khi khách bật "Nhận thêm ảnh số + video timelapse qua QR" ở bước chọn khung.
+
 ---
 
 ## 9. Máy in

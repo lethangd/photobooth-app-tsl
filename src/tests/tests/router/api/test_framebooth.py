@@ -268,3 +268,24 @@ def test_framebooth_render_with_overlay_and_print_disabled(client: TestClient):
     )
     assert response.status_code == 200, response.text
     assert response.json()["print"] == {"ok": True, "simulated": True}
+
+
+def test_framebooth_recording_endpoints_and_recorded_timelapse(client: TestClient):
+    from photobooth.services.framebooth.recorder import recorder
+
+    session = f"PBREC{uuid4().hex[:6]}"
+    assert client.post("/framebooth/recording/start", json={"session_id": session, "source": "browser"}).json()["ok"]
+    frame = io.BytesIO()
+    Image.new("RGB", (320, 180), "orange").save(frame, format="JPEG")
+    recording = recorder.get(session)
+    for _ in range(12):
+        recording.last_frame_at = 0  # bypass the 4 fps throttle in the test
+        assert client.post(f"/framebooth/recording/{session}/frame", content=frame.getvalue()).status_code == 204
+    capture_ids = [_capture(client) for _ in range(2)]  # each shot is marked in the recording
+    stopped = client.post(f"/framebooth/recording/{session}/stop").json()
+    assert stopped["frames"] >= 8 and stopped["shots"] == 2
+    assert client.post(f"/framebooth/recording/{session}/frame", content=frame.getvalue()).status_code == 409
+
+    response = client.post("/framebooth/timelapse", json={"capture_ids": capture_ids, "filter_id": "natural", "session_id": session})
+    assert response.status_code == 200, response.text
+    assert client.get(response.json()["video_url"].removeprefix("/api")).status_code == 200

@@ -145,3 +145,25 @@ export function printAgain(mediaId: string, copies: number, sessionId: string): 
   if (DEMO) return Promise.resolve({ ok: true, simulated: true });
   return postJson<PrintStatus>(`${BASE}/print`, { media_id: mediaId, copies, session_id: sessionId });
 }
+
+// ───── timelapse of the shooting (recorded from the photo camera) ─────
+
+export function startRecording(sessionId: string, source: "server" | "browser"): Promise<unknown> {
+  if (DEMO) return Promise.resolve({ ok: true });
+  return postJson(`${BASE}/recording/start`, { session_id: sessionId, source });
+}
+
+/** One frame of the browser camera; failures are ignored (the slideshow fallback still works). */
+export async function sendRecordingFrame(sessionId: string, frame: Blob): Promise<void> {
+  if (DEMO) return;
+  await fetch(`${BASE}/recording/${encodeURIComponent(sessionId)}/frame`, {
+    method: "POST",
+    headers: { "Content-Type": "image/jpeg" },
+    body: frame,
+  });
+}
+
+export function stopRecording(sessionId: string): Promise<unknown> {
+  if (DEMO) return Promise.resolve({ ok: true });
+  return postJson(`${BASE}/recording/${encodeURIComponent(sessionId)}/stop`);
+}
