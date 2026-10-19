@@ -46,18 +46,33 @@ if (-not (Test-Path -LiteralPath $Python)) {
   Write-Host "Creating local virtual environment in .venv..."
   if (Get-Command py -ErrorAction SilentlyContinue) {
     & py -3.11 -m venv .venv
+    if ($LASTEXITCODE -ne 0) { & py -3 -m venv .venv }
   } elseif (Get-Command python -ErrorAction SilentlyContinue) {
     & python -m venv .venv
   } else {
     throw "Python 3.11+ was not found. Install Python first, then run this script again."
   }
+  if (-not (Test-Path -LiteralPath $Python)) {
+    throw "Failed to create .venv. Make sure Python 3.11+ is installed (https://www.python.org/downloads/)."
+  }
 }
 
+# Windows PowerShell 5.1 turns native stderr into a terminating error when
+# $ErrorActionPreference is "Stop" and output is redirected, so the probe below
+# (which is expected to fail on a fresh clone) must run with "Continue".
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 & $Python -c "from importlib.metadata import version; import fastapi, uvicorn; version('photobooth-app')" *> $null
-if ($LASTEXITCODE -ne 0) {
+$needsInstall = $LASTEXITCODE -ne 0
+$ErrorActionPreference = $prevEap
+
+if ($needsInstall) {
   Write-Host "Installing photobooth-app into .venv..."
   & $Python -m pip install --upgrade pip
   & $Python -m pip install -e .
+  if ($LASTEXITCODE -ne 0) {
+    throw "pip install failed. See the output above."
+  }
 }
 
 # Rebuild the kiosk frontend only when a Node toolchain is available AND either the
